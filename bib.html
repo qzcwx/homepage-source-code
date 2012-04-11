@@ -1,0 +1,2688 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html lang="en">
+<head>
+<title>Wenxiang Chen's Bibliography Database</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<script type="text/javascript">
+<!--
+// QuickSearch script for JabRef HTML export 
+// Version: 2.0
+//
+// Copyright (c) 2006-2008, Mark Schenk
+//
+// This software is distributed under a Creative Commons Attribution 3.0 License
+// http://creativecommons.org/licenses/by/3.0/
+
+// Some features:
+// + optionally searches Abstracts and Reviews
+// + allows RegExp searches
+//   e.g. to search for entries between 1980 and 1989, type:  198[0-9]
+//   e.g. for any entry ending with 'symmetry', type:  symmetry$
+//   e.g. for all reftypes that are books: ^book$, or ^article$
+//   e.g. for entries by either John or Doe, type john|doe
+// + easy toggling of Abstract/Review/BibTeX
+
+// Search settings
+var searchAbstract = true;
+var searchReview = true;
+
+// Speed optimisation introduced some esoteric problems with certain RegExp searches
+// e.g. if the previous search is 200[-7] and the next search is 200[4-7] then the search doesn't work properly until the next 'keyup'
+// hence the searchOpt can be turned off for RegExp adepts
+var searchOpt = true;
+
+if (window.addEventListener) {
+	window.addEventListener("load",initSearch,false); }
+else if (window.attachEvent) {
+	window.attachEvent("onload", initSearch); }
+
+function initSearch() {
+	// basic object detection
+	if(!document.getElementById || !document.getElementsByTagName) { return; }
+	if (!document.getElementById('qstable')||!document.getElementById('qs')) { return; }
+
+	// find QS table and appropriate rows
+	searchTable = document.getElementById('qstable');
+	var allRows = searchTable.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+
+	// split all rows into entryRows and infoRows (e.g. abstract, review, bibtex)
+	entryRows = new Array();
+	infoRows = new Array(); absRows = new Array(); revRows = new Array();
+
+	for (var i=0, k=0, j=0; i<allRows.length;i++) {
+		if (allRows[i].className.match(/entry/)) {
+			entryRows[j++] = allRows[i];
+		} else {
+			infoRows[k++] = allRows[i];
+			// check for abstract/review
+			if (allRows[i].className.match(/abstract/)) {
+				absRows.push(allRows[i]);
+			} else if (allRows[i].className.match(/review/)) {
+				revRows.push(allRows[i]);
+			}
+		}
+	}
+
+	//number of entries and rows
+	numRows = allRows.length;
+	numEntries = entryRows.length;
+	numInfo = infoRows.length;
+	numAbs = absRows.length;
+	numRev = revRows.length;
+
+	//find the query field
+	qsfield = document.getElementById('qsfield');
+
+	// previous search term; used for speed optimisation
+	prevSearch = '';
+
+	//find statistics location
+	stats = document.getElementById('stat');
+	setStatistics(-1);
+
+	// creates the appropriate search settings
+	createQSettingsDialog();
+
+	// shows the searchfield
+	document.getElementById('qs').style.display = 'block';
+	document.getElementById('qsfield').onkeyup = testEvent;
+}
+
+function quickSearch(tInput){
+
+	 if (tInput.value.length == 0) {
+		showAll();
+		setStatistics(-1);
+		qsfield.className = '';
+		return;
+	} else {
+		// only search for valid RegExp
+		try {
+			var searchText = new RegExp(tInput.value,"i")
+			closeAllInfo();
+			qsfield.className = '';
+		}
+		catch(err) {
+			prevSearch = tInput.value;
+			qsfield.className = 'invalidsearch';
+			return;
+		}
+	}
+	
+	// count number of hits
+	var hits = 0;
+
+	// start looping through all entry rows
+	for (var i = 0; cRow = entryRows[i]; i++){
+
+		// only show search the cells if it isn't already hidden OR if the search term is getting shorter, then search all
+		// some further optimisation is possible: if the search string is getting shorter, and the row is already visible, skip it. Then be careful with hits!
+		if(!searchOpt || cRow.className.indexOf('noshow')==-1 || tInput.value.length <= prevSearch.length){
+			var found = false; 
+
+			var inCells = cRow.getElementsByTagName('td');
+			var numCols = inCells.length;
+				
+			for (var j=0; j<numCols; j++) {
+				cCell = inCells[j];
+				var t = cCell.innerText?cCell.innerText:getTextContent(cCell);
+				if (t.search(searchText) != -1){ 
+					found=true; 
+					break;
+				} 
+			}
+
+			// look for further hits in Abstract and Review
+			if(!found) {
+				var articleid = cRow.id;
+				if(searchAbstract && (abs = document.getElementById('abs_'+articleid))) {
+					if (getTextContent(abs).search(searchText) != -1){ found=true; } 
+				}
+				if(searchReview && (rev = document.getElementById('rev_'+articleid))) {
+					if (getTextContent(rev).search(searchText) != -1){ found=true; } 
+				}
+			}
+			
+			if(found) {
+				cRow.className = 'entry show';
+				hits++;
+			} else {
+				cRow.className = 'entry noshow';
+			}
+		}
+	}
+
+	// update statistics
+	setStatistics(hits)
+	
+	// set previous search value
+	prevSearch = tInput.value;
+}
+
+function toggleInfo(articleid,info) {
+
+	var entry = document.getElementById(articleid);
+	var abs = document.getElementById('abs_'+articleid);
+	var rev = document.getElementById('rev_'+articleid);
+	var bib = document.getElementById('bib_'+articleid);
+	
+	if (abs && info == 'abstract') {
+		if(abs.className.indexOf('abstract') != -1) {
+		abs.className.indexOf('noshow') == -1?abs.className = 'abstract noshow':abs.className = 'abstract';
+		}
+	} else if (rev && info == 'review') {
+		if(rev.className.indexOf('review') != -1) {
+		rev.className.indexOf('noshow') == -1?rev.className = 'review noshow':rev.className = 'review';
+		}
+	} else if (bib && info == 'bibtex') {
+		if(bib.className.indexOf('bibtex') != -1) {
+		bib.className.indexOf('noshow') == -1?bib.className = 'bibtex noshow':bib.className = 'bibtex';
+		}		
+	} else { 
+		return;
+	}
+
+	// check if one or the other is available
+	var revshow = false;
+	var absshow = false;
+	var bibshow = false;
+	(abs && abs.className.indexOf('noshow') == -1)? absshow = true: absshow = false;
+	(rev && rev.className.indexOf('noshow') == -1)? revshow = true: revshow = false;	
+	(bib && bib.className == 'bibtex')? bibshow = true: bibshow = false;
+	
+	// highlight original entry
+	if(entry) {
+		if (revshow || absshow || bibshow) {
+		entry.className = 'entry highlight show';
+		} else {
+		entry.className = 'entry show';
+		}		
+	}
+	
+	// When there's a combination of abstract/review/bibtex showing, need to add class for correct styling
+	if(absshow) {
+		(revshow||bibshow)?abs.className = 'abstract nextshow':abs.className = 'abstract';
+	} 
+	if (revshow) {
+		bibshow?rev.className = 'review nextshow': rev.className = 'review';
+	}
+	
+}
+
+function setStatistics (hits) {
+	if(hits < 0) { hits=numEntries; }
+	if(stats) { stats.firstChild.data = hits + '/' + numEntries}
+}
+
+function getTextContent(node) {
+	// Function written by Arve Bersvendsen
+	// http://www.virtuelvis.com
+	
+	if (node.nodeType == 3) {
+	return node.nodeValue;
+	} // text node
+	if (node.nodeType == 1) { // element node
+	var text = [];
+	for (var chld = node.firstChild;chld;chld=chld.nextSibling) {
+		text.push(getTextContent(chld));
+	}
+	return text.join("");
+	} return ""; // some other node, won't contain text nodes.
+}
+
+function showAll(){
+	// first close all abstracts, reviews, etc.
+	closeAllInfo();
+
+	for (var i = 0; i < numEntries; i++){
+		entryRows[i].className = 'entry show'; 
+	}
+}
+
+function closeAllInfo(){
+	for (var i=0; i < numInfo; i++){
+		if (infoRows[i].className.indexOf('noshow') ==-1) {
+			infoRows[i].className = infoRows[i].className + ' noshow';
+		}
+	}
+}
+
+function testEvent(e){
+	if (!e) var e = window.event;
+	quickSearch(this);
+}
+
+function clearQS() {
+	qsfield.value = '';
+	quickSearch(qsfield);
+}
+
+function redoQS(){
+	showAll();
+	quickSearch(qsfield);
+}
+
+// Create Search Settings
+
+function toggleQSettingsDialog() {
+
+	var qssettings = document.getElementById('qssettings');
+	
+	if(qssettings.className.indexOf('active')==-1) {
+		qssettings.className = 'active';
+
+		if(absCheckBox && searchAbstract == true) { absCheckBox.checked = 'checked'; }
+		if(revCheckBox && searchReview == true) { revCheckBox.checked = 'checked'; }
+
+	} else {
+		qssettings.className= '';
+	}
+}
+
+function createQSettingsDialog(){
+	var qssettingslist = document.getElementById('qssettings').getElementsByTagName('ul')[0];
+	
+	if(numAbs!=0) {
+		var x = document.createElement('input');
+		x.id = "searchAbs";
+		x.type = "checkbox";
+		x.onclick = toggleQSetting;
+		var y = qssettingslist.appendChild(document.createElement('li')).appendChild(document.createElement('label'));
+		y.appendChild(x);
+		y.appendChild(document.createTextNode('search abstracts'));		
+	}
+	if(numRev!=0) {
+		var x = document.createElement('input');
+		x.id = "searchRev";
+		x.type = "checkbox";		
+		x.onclick = toggleQSetting;
+		var y = qssettingslist.appendChild(document.createElement('li')).appendChild(document.createElement('label'));		
+		y.appendChild(x);		
+		y.appendChild(document.createTextNode('search reviews'));
+	}
+		
+	// global variables
+	absCheckBox = document.getElementById('searchAbs');
+	revCheckBox = document.getElementById('searchRev');
+	
+	// show search settings
+	if(absCheckBox||revCheckBox) {
+		document.getElementById('qssettings').style.display = 'block';
+	}
+}
+
+function toggleQSetting() {
+	if(this.id=='searchAbs') { searchAbstract = !searchAbstract; }
+	if(this.id=='searchRev') { searchReview = !searchReview; }
+	redoQS()
+} 
+-->
+</script>
+<style type="text/css">
+body { background-color: white; font-family: "Trebuchet MS", Arial, sans-serif; font-size: 12px; line-height: 1.2; padding: 1em; color: #2E2E2E; }
+
+#qs { width: auto; border-style: solid; border-color: gray; border-width: 1px 1px 0px 1px; padding: 0.5em 0.5em; display:none; position:relative; }
+#qs form { padding: 0px; margin: 0px; }
+#qs form p { padding: 0px; margin: 0px; }
+
+.invalidsearch { background-color: red; }
+
+table { border: 1px gray solid; width: 100%; empty-cells: show; }
+th, td { border: 1px gray solid; padding: 0.5em; vertical-align: top;  }
+td { text-align: left; vertical-align: top; }
+th { background-color: #EFEFEF; }
+
+td a { color: navy; text-decoration: none; }
+td a:hover  { text-decoration: underline; }
+
+tr.noshow { display: none;}
+
+tr.highlight td { background-color: #F1F1F1; border-top: 2px black solid; font-weight: bold; }
+tr.abstract td, tr.review td, tr.bibtex td { background-color: #F1F1F1; border-bottom: 2px black solid; }
+tr.nextshow td { border-bottom: 1px gray solid; }
+
+tr.bibtex pre { width: 100%; overflow: auto;}
+
+p.infolinks { margin: 0.5em 0em 0em 0em; padding: 0px; }
+
+#qssettings { padding: 0.5em; position: absolute; top: 0.2em; right: 0.2em; border: 1px gray solid; background-color: white; display: none; }
+#qssettings p { font-weight: bold; cursor: pointer; }
+#qssettings ul { display: none; list-style-type: none; padding-left: 0; margin: 0; }
+#qssettings.active ul { display: block; }
+
+@media print {
+	p.infolinks, #qssettings, #qs { display: none !important; }
+	table { border-width: 0px; }
+	tr { page-break-inside: avoid; }
+	tr > * + * + * + * + * {display: none; }
+	thead tr::before { content: "Reference"; border: 1px gray solid; padding: 0.5em; vertical-align: top; font-weight: bold; text-align: center; display: table-cell; background-color: #EFEFEF; }
+	tr[id]::before { content: attr(id); display: table-cell; border: 1px gray solid; padding: 0.5em; vertical-align: top; font-style: italic; }
+}
+</style>
+</head>
+<body>
+<h2><a href="index.html"><strong>Back to Wenxiang Chen's Homepage</strong></a></h2>
+<p>
+Database maintainer is Wenxiang Chen. Please feel free to contact me <a href="mailto:chenwx.ustc@gmail.com">chenwx.ustc@gmail.com</a> if you have any problem.</small>
+</p>
+<div id="qs">
+	<form action="">
+	<p>QuickSearch: <input type="text" name="qsfield" id="qsfield" autocomplete="off" title="Allows plain text as well as RegExp searches" /><input type="button" onclick="clearQS()" value="clear" />&nbsp; Number of matching entries: <span id="stat">0</span>.</p>
+	<div id="qssettings">
+		<p onclick="toggleQSettingsDialog()">Search Settings</p>
+		<ul></ul>
+	</div>
+	</form>
+</div>
+<table id="qstable" border="1">
+<thead><tr><th width="20%">Author</th><th width="30%">Title</th><th width="5%">Year</th><th width="30%">Journal/Proceedings</th><th width="10%">Reftype</th><th width="5%">DOI/URL</th></tr></thead>
+<tbody><tr id="cpso2004" class="entry">
+	<td>van den Bergh, F. &amp; Engelbrech, A.P.</td>
+	<td>A Cooperative Approach to Particle Swarm Optimization <p class="infolinks">[<a href="javascript:toggleInfo('cpso2004','bibtex')">BibTeX</a>]</p></td>
+	<td>2004</td>
+	<td>IEEE Transactions on Evolutionary Computation<br/>Vol. 8(3), pp. 225-239&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_cpso2004" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{cpso2004,
+  author = {Frans van den Bergh and Andries P. Engelbrech},
+  title = {A Cooperative Approach to Particle Swarm Optimization},
+  journal = {IEEE Transactions on Evolutionary Computation},
+  year = {2004},
+  volume = {8},
+  number = {3},
+  pages = {225--239}
+}
+</pre></td>
+</tr>
+<tr id="de2009swarmCUDA" class="entry">
+	<td>de P. Veronese, L. &amp; Krohling, R.A.</td>
+	<td>Swarm's flight: accelerating the particles using C-CUDA <p class="infolinks">[<a href="javascript:toggleInfo('de2009swarmCUDA','bibtex')">BibTeX</a>]</p></td>
+	<td>2009</td>
+	<td>Proceedings of the Eleventh conference on Congress on Evolutionary Computation, pp. 3264-3270&nbsp;</td>
+	<td>conference</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_de2009swarmCUDA" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@conference{de2009swarmCUDA,
+  author = {Lucas de P. Veronese and Renato A. Krohling},
+  title = {Swarm's flight: accelerating the particles using C-CUDA},
+  booktitle = {Proceedings of the Eleventh conference on Congress on Evolutionary Computation},
+  year = {2009},
+  pages = {3264--3270}
+}
+</pre></td>
+</tr>
+<tr id="aickelinPyramidal" class="entry">
+	<td>Aickelin, U.</td>
+	<td>A Pyramidal Evolutionary Algorithm with Different Inter-Agent Partnering Strategies for Scheduling Problems <p class="infolinks">[<a href="javascript:toggleInfo('aickelinPyramidal','bibtex')">BibTeX</a>]</p></td>
+	<td></td>
+	<td>GECCO Late-Breaking Papers, pp. 1-8&nbsp;</td>
+	<td>conference</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_aickelinPyramidal" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@conference{aickelinPyramidal,
+  author = {Aickelin, U.},
+  title = {A Pyramidal Evolutionary Algorithm with Different Inter-Agent Partnering Strategies for Scheduling Problems},
+  booktitle = {GECCO Late-Breaking Papers},
+  pages = {1--8}
+}
+</pre></td>
+</tr>
+<tr id="altenberg1997nk" class="entry">
+	<td>Altenberg, L.</td>
+	<td>NK fitness landscapes <p class="infolinks">[<a href="javascript:toggleInfo('altenberg1997nk','bibtex')">BibTeX</a>]</p></td>
+	<td>1997</td>
+	<td>Handbook of Evolutionary Computation, B<br/>Vol. 2&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_altenberg1997nk" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{altenberg1997nk,
+  author = {Altenberg, L.},
+  title = {NK fitness landscapes},
+  journal = {Handbook of Evolutionary Computation, B},
+  year = {1997},
+  volume = {2}
+}
+</pre></td>
+</tr>
+<tr id="restartCMA" class="entry">
+	<td>Auger, A. &amp; Hansen, N.</td>
+	<td>A Restart CMA Evolution Strategy with Increasing Population Size <p class="infolinks">[<a href="javascript:toggleInfo('restartCMA','bibtex')">BibTeX</a>]</p></td>
+	<td>2005</td>
+	<td><br/>Vol. 2IEEE Congress on Evolutionary Computation&nbsp;</td>
+	<td>inproceedings</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_restartCMA" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{restartCMA,
+  author = {Ann Auger and Nikolaus Hansen},
+  title = {A Restart CMA Evolution Strategy with Increasing Population Size},
+  booktitle = {IEEE Congress on Evolutionary Computation},
+  publisher = {IEEE Press},
+  year = {2005},
+  volume = {2}
+}
+</pre></td>
+</tr>
+<tr id="addSepDef" class="entry">
+	<td>BELLENOT, S.F.</td>
+	<td>ADDITIVELY SEPARABLE FUNCTIONS FUNCTIONS OF THE FORM F (x, y) = f (x) + g(y) <p class="infolinks">[<a href="javascript:toggleInfo('addSepDef','bibtex')">BibTeX</a>]</p></td>
+	<td></td>
+	<td>&nbsp;</td>
+	<td>misc</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_addSepDef" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@misc{addSepDef,
+  author = {STEVEN F. BELLENOT},
+  title = {ADDITIVELY SEPARABLE FUNCTIONS FUNCTIONS OF THE FORM F (x, y) = f (x) + g(y)}
+}
+</pre></td>
+</tr>
+<tr id="bellman1961adaptive" class="entry">
+	<td>Bellman, R.</td>
+	<td>Adaptive control processes: a guided tour <p class="infolinks">[<a href="javascript:toggleInfo('bellman1961adaptive','bibtex')">BibTeX</a>]</p></td>
+	<td>1961</td>
+	<td>Princeton University Press, Princeton, New Jersey, USA<br/>Vol. 19, pp. 94&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_bellman1961adaptive" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{bellman1961adaptive,
+  author = {Bellman, R.},
+  title = {Adaptive control processes: a guided tour},
+  journal = {Princeton University Press, Princeton, New Jersey, USA},
+  year = {1961},
+  volume = {19},
+  pages = {94}
+}
+</pre></td>
+</tr>
+<tr id="B1957DP" class="entry">
+	<td>Bellman, R.</td>
+	<td>Dynamic Programming <p class="infolinks">[<a href="javascript:toggleInfo('B1957DP','bibtex')">BibTeX</a>]</p></td>
+	<td>1957</td>
+	<td>&nbsp;</td>
+	<td>book</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_B1957DP" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@book{B1957DP,
+  author = {Bellman, R.E.},
+  title = {Dynamic Programming},
+  publisher = {Princeton University Press},
+  year = {1957}
+}
+</pre></td>
+</tr>
+<tr id="Brest2008cecss" class="entry">
+	<td>Brest, J., Zamuda, A., Boskovic, B., Maucec, M. &amp; Zumer, V.</td>
+	<td>High-dimensional real-parameter optimization using Self-Adaptive Differential Evolution algorithm with population size reduction <p class="infolinks">[<a href="javascript:toggleInfo('Brest2008cecss','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('Brest2008cecss','bibtex')">BibTeX</a>]</p></td>
+	<td>2008</td>
+	<td>Evolutionary Computation, 2008. CEC 2008. (IEEE World Congress on Computational Intelligence). IEEE Congress on, pp. 2032 -2039&nbsp;</td>
+	<td>inproceedings</td>
+	<td><a href="http://dx.doi.org/10.1109/CEC.2008.4631067">DOI</a> &nbsp;</td>
+</tr>
+<tr id="abs_Brest2008cecss" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: In this paper we investigate a self-adaptive differential evolution algorithm (jDEdynNP-F) where F and CR control parameters are self-adapted and a population size reduction method is used. Additionally the proposed jDEdynNP-F algorithm uses a mechanism for sign changing of F control parameter with some probability based on the fitness values of randomly chosen vectors, which are multiplied by the F control parameter (scaling factor) in the mutation operation of DE algorithm. The performance of the jDEdynNP-F algorithm is evaluated on the set of 7 benchmark functions provided for the CECpsila2008 special session on high-dimensional real-parameter optimization.</td>
+</tr>
+<tr id="bib_Brest2008cecss" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{Brest2008cecss,
+  author = {Brest, J. and Zamuda, A. and Boskovic, B. and Maucec, M.S. and Zumer, V.},
+  title = {High-dimensional real-parameter optimization using Self-Adaptive Differential Evolution algorithm with population size reduction},
+  journal = {Evolutionary Computation, 2008. CEC 2008. (IEEE World Congress on Computational Intelligence). IEEE Congress on},
+  year = {2008},
+  pages = {2032 -2039},
+  doi = {http://dx.doi.org/10.1109/CEC.2008.4631067}
+}
+</pre></td>
+</tr>
+<tr id="bäck1997handbook" class="entry">
+	<td>B\&auml;ck, T., Fogel, D. &amp; Michalewicz, Z.</td>
+	<td>Handbook of evolutionary computation <p class="infolinks">[<a href="javascript:toggleInfo('bäck1997handbook','bibtex')">BibTeX</a>]</p></td>
+	<td>1997</td>
+	<td>&nbsp;</td>
+	<td>book</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_bäck1997handbook" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@book{bäck1997handbook,
+  author = {B\&auml;ck, T. and Fogel, D.B. and Michalewicz, Z.},
+  title = {Handbook of evolutionary computation},
+  publisher = {Taylor &amp; Francis},
+  year = {1997}
+}
+</pre></td>
+</tr>
+<tr id="ppsn2010Poster" class="entry">
+	<td>Chen, W.</td>
+	<td>Large-Scale Global Optimization using Cooperative Coevolution with Variable Interaction Learning <p class="infolinks">[<a href="javascript:toggleInfo('ppsn2010Poster','bibtex')">BibTeX</a>]</p></td>
+	<td>2010</td>
+	<td>Via academic homepage, http://mail.ustc.edu.cn/~chenwx&nbsp;</td>
+	<td>misc</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_ppsn2010Poster" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@misc{ppsn2010Poster,
+  author = {Wenxiang Chen},
+  title = {Large-Scale Global Optimization using Cooperative Coevolution with Variable Interaction Learning},
+  year = {2010}
+}
+</pre></td>
+</tr>
+<tr id="slides2010PPSN" class="entry">
+	<td>Chen, W.</td>
+	<td>Variable Interaction Learning in Cooperative Coevolution <p class="infolinks">[<a href="javascript:toggleInfo('slides2010PPSN','bibtex')">BibTeX</a>]</p></td>
+	<td>2010</td>
+	<td>Via academic homepage, http://mail.ustc.edu.cn/~chenwx&nbsp;</td>
+	<td>misc</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_slides2010PPSN" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@misc{slides2010PPSN,
+  author = {Wenxiang Chen},
+  title = {Variable Interaction Learning in Cooperative Coevolution},
+  year = {2010}
+}
+</pre></td>
+</tr>
+<tr id="ppsn2010chen" class="entry">
+	<td>Chen, W., Weise, T., Yang, Z. &amp; Tang, K.</td>
+	<td>Large-Scale Global Optimization using Cooperative Coevolution with Variable Interaction Learning <p class="infolinks">[<a href="javascript:toggleInfo('ppsn2010chen','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('ppsn2010chen','bibtex')">BibTeX</a>]</p></td>
+	<td>2010</td>
+	<td>Parallel Problem Solving from Nature, PPSN XI, pp. 300-309&nbsp;</td>
+	<td>inproceedings</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="abs_ppsn2010chen" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: In recent years, Cooperative Coevolution (CC) was proposed as a promising framework for tackling high-dimensional optimization problems. The main idea of CC-based algorithms is to discover which decision variables, i.e, dimensions, of the search space interact. Non-interacting variables can be optimized as separate problems of lower dimensionality. Interacting variables must be grouped together and optimized jointly. Early research in this area started with simple attempts such as one-dimension based and splitting-in-half methods. Later, more efficient algorithms with new grouping strategies, such as DECC-G and MLCC, were proposed. However, those grouping strategies still cannot sufficiently adapt to different group sizes. In this paper, we propose a new CC framework named Cooperative Coevolution with Variable Interaction Learning (CCVIL), which initially considers all variables as independent and puts each of them into a separate group. Iteratively, it discovers their relations and merges the groups accordingly. The efficiency of the newly proposed framework is evaluated on the set of large-scale optimization benchmarks.</td>
+</tr>
+<tr id="bib_ppsn2010chen" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{ppsn2010chen,
+  author = {Wenxiang Chen and Thomas Weise and Zhenyu Yang and Ke Tang},
+  title = {Large-Scale Global Optimization using Cooperative Coevolution with Variable Interaction Learning},
+  booktitle = {Parallel Problem Solving from Nature, PPSN XI},
+  publisher = {Springer-Verlag Berlin Heidelberg},
+  year = {2010},
+  pages = {300-309}
+}
+</pre></td>
+</tr>
+<tr id="chen2007survey" class="entry">
+	<td>Chen, Y., Yu, T., Sastry, K. &amp; Goldberg, D.</td>
+	<td>A survey of linkage learning techniques in genetic and evolutionary algorithms <p class="infolinks">[<a href="javascript:toggleInfo('chen2007survey','bibtex')">BibTeX</a>]</p></td>
+	<td>2007</td>
+	<td>IlliGAL Report<br/>Vol. 2007014&nbsp;</td>
+	<td>techreport</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_chen2007survey" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@techreport{chen2007survey,
+  author = {Chen, YP and Yu, T.L. and Sastry, K. and Goldberg, D.E.},
+  title = {A survey of linkage learning techniques in genetic and evolutionary algorithms},
+  journal = {IlliGAL Report},
+  publisher = {Citeseer},
+  year = {2007},
+  volume = {2007014}
+}
+</pre></td>
+</tr>
+<tr id="Corcoran94usingreal-valued" class="entry">
+	<td>Corcoran, A.L. &amp; Sen, S.</td>
+	<td>Using Real-Valued Genetic Algorithms to Evolve Rule Sets for Classification <p class="infolinks">[<a href="javascript:toggleInfo('Corcoran94usingreal-valued','bibtex')">BibTeX</a>]</p></td>
+	<td>1994</td>
+	<td>In IEEE-CEC, pp. 120-124&nbsp;</td>
+	<td>inproceedings</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_Corcoran94usingreal-valued" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{Corcoran94usingreal-valued,
+  author = {Arthur L. Corcoran and Sandip Sen},
+  title = {Using Real-Valued Genetic Algorithms to Evolve Rule Sets for Classification},
+  booktitle = {In IEEE-CEC},
+  year = {1994},
+  pages = {120--124}
+}
+</pre></td>
+</tr>
+<tr id="DejongGA-NP" class="entry">
+	<td>De Jong, K. &amp; Spears, W.</td>
+	<td>Using genetic algorithms to solve NP-complete problems <p class="infolinks">[<a href="javascript:toggleInfo('DejongGA-NP','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('DejongGA-NP','bibtex')">BibTeX</a>]</p></td>
+	<td>1989</td>
+	<td>Proceedings of the Third International Conference on Genetic Algorithms, pp. 124-132&nbsp;</td>
+	<td>conference</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="abs_DejongGA-NP" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: A strategy for using Genetic Algorithms (GAs) to<br>solve NP-complete problems is presented. The key<br>aspect of the approach taken is to exploit the obser-<br>vation that, although all NP-complete problems are<br>equally difficult in a general computational sense,<br>some have much better GA representations than oth-<br>ers, leading to much more successful use of GAs on<br>some NP-complete problems than on others. Since<br>any NP-complete problem can be mapped into any<br>other one in polynomial time, the strategy described<br>here consists of identifying a canonical NP-complete<br>problem on which GAs work well, and solving other<br>NP-complete problems indirectly by mapping them<br>onto the canonical problem. Initial empirical results<br>are presented which support the claim that the<br>Boolean Satisfiability Problem (SAT) is a GA-<br>effective canonical problem, and that other NP-<br>complete problems with poor GA representations<br>can be solved efficiently by mapping them first onto<br>SAT problems.</td>
+</tr>
+<tr id="bib_DejongGA-NP" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@conference{DejongGA-NP,
+  author = {De Jong, K.A. and Spears, W.M.},
+  title = {Using genetic algorithms to solve NP-complete problems},
+  booktitle = {Proceedings of the Third International Conference on Genetic Algorithms},
+  year = {1989},
+  pages = {124--132}
+}
+</pre></td>
+</tr>
+<tr id="Dejong2010geccoSlides" class="entry">
+	<td>De Jong, K.A.</td>
+	<td>Evolutionary computation: a unified approach[Slides] <p class="infolinks">[<a href="javascript:toggleInfo('Dejong2010geccoSlides','bibtex')">BibTeX</a>]</p></td>
+	<td>2010</td>
+	<td>GECCO '10: Proceedings of the 12th annual conference comp on Geneticand evolutionary computation, pp. 2289-2302&nbsp;</td>
+	<td>inproceedings</td>
+	<td><a href="http://doi.acm.org/10.1145/1830761.1830896">DOI</a> &nbsp;</td>
+</tr>
+<tr id="bib_Dejong2010geccoSlides" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{Dejong2010geccoSlides,
+  author = {Kenneth Alan De Jong},
+  title = {Evolutionary computation: a unified approach[Slides]},
+  booktitle = {GECCO '10: Proceedings of the 12th annual conference comp on Geneticand evolutionary computation},
+  publisher = {ACM},
+  year = {2010},
+  pages = {2289--2302},
+  doi = {http://doi.acm.org/10.1145/1830761.1830896}
+}
+</pre></td>
+</tr>
+<tr id="DejongEAbook" class="entry">
+	<td>De Jong, K.A.</td>
+	<td>Evolutionary Computation: A Unified Approach. <p class="infolinks">[<a href="javascript:toggleInfo('DejongEAbook','bibtex')">BibTeX</a>]</p></td>
+	<td>2006</td>
+	<td>&nbsp;</td>
+	<td>book</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_DejongEAbook" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@book{DejongEAbook,
+  author = {Kenneth Alan De Jong},
+  title = {Evolutionary Computation: A Unified Approach.},
+  publisher = {MIT Press},
+  year = {2006}
+}
+</pre></td>
+</tr>
+<tr id="duque2009new" class="entry">
+	<td>Duque, T. &amp; Goldberg, D.</td>
+	<td>A new method for linkage learning in the ECGA <p class="infolinks">[<a href="javascript:toggleInfo('duque2009new','bibtex')">BibTeX</a>]</p></td>
+	<td>2009</td>
+	<td>Proceedings of the 11th Annual conference on Genetic and evolutionary computation, pp. 1819-1820&nbsp;</td>
+	<td>conference</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_duque2009new" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@conference{duque2009new,
+  author = {Duque, T.S.P.C. and Goldberg, D.E.},
+  title = {A new method for linkage learning in the ECGA},
+  booktitle = {Proceedings of the 11th Annual conference on Genetic and evolutionary computation},
+  year = {2009},
+  pages = {1819--1820}
+}
+</pre></td>
+</tr>
+<tr id="duque2008enhancing" class="entry">
+	<td>Duque, T.S.P.C., Goldberg, D.E. &amp; Sastry, K.</td>
+	<td>Enhancing the Efficiency of the ECGA <p class="infolinks">[<a href="javascript:toggleInfo('duque2008enhancing','bibtex')">BibTeX</a>]</p></td>
+	<td>2008</td>
+	<td>Parallel Problem Solving from Nature--PPSN X, pp. 165-174&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_duque2008enhancing" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{duque2008enhancing,
+  author = {Thyago S. P. C. Duque and David E. Goldberg and Kumara Sastry},
+  title = {Enhancing the Efficiency of the ECGA},
+  journal = {Parallel Problem Solving from Nature--PPSN X},
+  publisher = {Springer},
+  year = {2008},
+  pages = {165--174}
+}
+</pre></td>
+</tr>
+<tr id="Goldberg91acomparative" class="entry">
+	<td>Goldberg, D.E. &amp; Deb, K.</td>
+	<td>A comparative analysis of selection schemes used in genetic algorithms <p class="infolinks">[<a href="javascript:toggleInfo('Goldberg91acomparative','bibtex')">BibTeX</a>]</p></td>
+	<td>1991</td>
+	<td>Foundations of Genetic Algorithms, pp. 69-93&nbsp;</td>
+	<td>inproceedings</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_Goldberg91acomparative" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{Goldberg91acomparative,
+  author = {David E. Goldberg and Kalyanmoy Deb},
+  title = {A comparative analysis of selection schemes used in genetic algorithms},
+  booktitle = {Foundations of Genetic Algorithms},
+  publisher = {Morgan Kaufmann},
+  year = {1991},
+  pages = {69--93}
+}
+</pre></td>
+</tr>
+<tr id="gould2005numerical" class="entry">
+	<td>Gould, N., Orban, D. &amp; Toint, P.</td>
+	<td>Numerical methods for large-scale nonlinear optimization <p class="infolinks">[<a href="javascript:toggleInfo('gould2005numerical','bibtex')">BibTeX</a>]</p></td>
+	<td>2005</td>
+	<td>Acta Numerica<br/>Vol. 14, pp. 299-361&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_gould2005numerical" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{gould2005numerical,
+  author = {Gould, N. and Orban, D. and Toint, P.},
+  title = {Numerical methods for large-scale nonlinear optimization},
+  journal = {Acta Numerica},
+  publisher = {Cambridge Univ Press},
+  year = {2005},
+  volume = {14},
+  pages = {299--361}
+}
+</pre></td>
+</tr>
+<tr id="hansen2008cma" class="entry">
+	<td>Hansen, N.</td>
+	<td>The CMA evolution strategy: A tutorial <p class="infolinks">[<a href="javascript:toggleInfo('hansen2008cma','bibtex')">BibTeX</a>]</p></td>
+	<td>2005</td>
+	<td>&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_hansen2008cma" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{hansen2008cma,
+  author = {Nikolaus Hansen},
+  title = {The CMA evolution strategy: A tutorial},
+  year = {2005}
+}
+</pre></td>
+</tr>
+<tr id="hansen2004evalCMA" class="entry">
+	<td>Hansen, N. &amp; Kern, S.</td>
+	<td>Evaluating the CMA Evolution Strategy on Multimodal Test Functions <p class="infolinks">[<a href="javascript:toggleInfo('hansen2004evalCMA','bibtex')">BibTeX</a>]</p></td>
+	<td>2004</td>
+	<td>Parallel Problem Solving from Nature -- PPSN VIII, pp. 282-291&nbsp;</td>
+	<td>inproceedings</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_hansen2004evalCMA" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{hansen2004evalCMA,
+  author = {Nikolaus Hansen and Stefan Kern},
+  title = {Evaluating the CMA Evolution Strategy on Multimodal Test Functions},
+  booktitle = {Parallel Problem Solving from Nature -- PPSN VIII},
+  publisher = {Springer},
+  year = {2004},
+  pages = {282--291}
+}
+</pre></td>
+</tr>
+<tr id="hansen2003reduceCMA" class="entry">
+	<td>Hansen, N., M&uuml;ller, S.D. &amp; Koumoutsakos, P.</td>
+	<td>Reducing the Time Complexity of the Derandomized Evolution Strategy with Covariance Matrix Adaptation (CMA-ES) <p class="infolinks">[<a href="javascript:toggleInfo('hansen2003reduceCMA','bibtex')">BibTeX</a>]</p></td>
+	<td>2003</td>
+	<td>Evolutionary Computation<br/>Vol. 11(1), pp. 1-18&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_hansen2003reduceCMA" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{hansen2003reduceCMA,
+  author = {Nikolaus Hansen and Sibylle D. M&uuml;ller and Petros Koumoutsakos},
+  title = {Reducing the Time Complexity of the Derandomized Evolution Strategy with Covariance Matrix Adaptation (CMA-ES)},
+  journal = {Evolutionary Computation},
+  year = {2003},
+  volume = {11},
+  number = {1},
+  pages = {1--18}
+}
+</pre></td>
+</tr>
+<tr id="Harik99linkagelearning" class="entry">
+	<td>Harik, G.</td>
+	<td>Linkage Learning via Probabilistic Modeling in the ECGA <p class="infolinks">[<a href="javascript:toggleInfo('Harik99linkagelearning','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('Harik99linkagelearning','review')">Review</a>] [<a href="javascript:toggleInfo('Harik99linkagelearning','bibtex')">BibTeX</a>]</p></td>
+	<td>1999</td>
+	<td>&nbsp;</td>
+	<td>techreport</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="abs_Harik99linkagelearning" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: The goal of linkage learning, or building block identification, is the creation of a<br>more effective genetic algorithm (GA). This paper explores the relationship between the<br>linkage-learning problem and that of learning probability distributions over multi-variate<br>spaces. Herein, it is argued that these problems are equivalent. Using a simple but effective<br>approach to learning distributions, and by implication linkage, this paper reveals the<br>existence of GA-like algorithms that are potentially orders of magnitude faster and more<br>accurate than the simple GA.</td>
+</tr>
+<tr id="rev_Harik99linkagelearning" class="review noshow">
+	<td colspan="6"><b>Review</b>: This paper is a quite inspiring paper. Actually, it has the similar basic idea as my PPSN paper, yet the viewpoint and the solution for the problem is different.<p>Key Points:<br>1. The complexity of MPM model search is potentially computionally expensive. <br>A: Look for heuristic approximations to learning algorithms.<p>2. Baysian Network is more powerful than MPM in ECGA, but the computational effort will be even higher.</td>
+</tr>
+<tr id="bib_Harik99linkagelearning" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@techreport{Harik99linkagelearning,
+  author = {Georges Harik},
+  title = {Linkage Learning via Probabilistic Modeling in the ECGA},
+  year = {1999}
+}
+</pre></td>
+</tr>
+<tr id="HarikLinkagePHD" class="entry">
+	<td>Harik, G.R.</td>
+	<td>Learning gene linkage to efficiently solve problems of bounded difficulty using genetic algorithms <p class="infolinks">[<a href="javascript:toggleInfo('HarikLinkagePHD','bibtex')">BibTeX</a>]</p></td>
+	<td>1997</td>
+	<td>&nbsp;</td>
+	<td>phdthesis</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_HarikLinkagePHD" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@phdthesis{HarikLinkagePHD,
+  author = {Harik, Georges Raif},
+  title = {Learning gene linkage to efficiently solve problems of bounded difficulty using genetic algorithms},
+  publisher = {University of Michigan},
+  year = {1997}
+}
+</pre></td>
+</tr>
+<tr id="Hsieh2009smcb" class="entry">
+	<td>Hsieh, S.-T., Sun, T.-Y., Liu, C.-C. &amp; Tsai, S.-J.</td>
+	<td>Efficient Population Utilization Strategy for Particle Swarm Optimizer <p class="infolinks">[<a href="javascript:toggleInfo('Hsieh2009smcb','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('Hsieh2009smcb','bibtex')">BibTeX</a>]</p></td>
+	<td>2009</td>
+	<td>IEEE Transactions on Systems, Man, and Cybernetics, Part B: Cybernetics<br/>Vol. 39(2), pp. 444 -456&nbsp;</td>
+	<td>article</td>
+	<td><a href="http://dx.doi.org/10.1109/TSMCB.2008.2006628">DOI</a> &nbsp;</td>
+</tr>
+<tr id="abs_Hsieh2009smcb" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: The particle swarm optimizer (PSO) is a population-based optimization technique that can be applied to a wide range of problems. This paper presents a variation on the traditional PSO algorithm, called the efficient population utilization strategy for PSO (EPUS-PSO), adopting a population manager to significantly improve the efficiency of PSO. This is achieved by using variable particles in swarms to enhance the searching ability and drive particles more efficiently. Moreover, sharing principals are constructed to stop particles from falling into the local minimum and make the global optimal solution easier found by particles. Experiments were conducted on unimodal and multimodal test functions such as quadric, griewanks, rastrigin, ackley, and weierstrass, with and without coordinate rotation. The results show good performance of the EPUS-PSO in solving most benchmark problems as compared to other recent variants of the PSO.</td>
+</tr>
+<tr id="bib_Hsieh2009smcb" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{Hsieh2009smcb,
+  author = {Sheng-Ta Hsieh and Tsung-Ying Sun and Chan-Cheng Liu and Shang-Jeng Tsai},
+  title = {Efficient Population Utilization Strategy for Particle Swarm Optimizer},
+  journal = {IEEE Transactions on Systems, Man, and Cybernetics, Part B: Cybernetics},
+  year = {2009},
+  volume = {39},
+  number = {2},
+  pages = {444 -456},
+  doi = {http://dx.doi.org/10.1109/TSMCB.2008.2006628}
+}
+</pre></td>
+</tr>
+<tr id="Hsieh2007cecss" class="entry">
+	<td>Hsieh, S.-T., Sun, T.-Y., Liu, C.-C. &amp; Tsai, S.-J.</td>
+	<td>Solving large scale global optimization using improved Particle Swarm Optimizer <p class="infolinks">[<a href="javascript:toggleInfo('Hsieh2007cecss','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('Hsieh2007cecss','bibtex')">BibTeX</a>]</p></td>
+	<td>2008</td>
+	<td>Evolutionary Computation, 2008. CEC 2008. (IEEE World Congress on Computational Intelligence). IEEE Congress on, pp. 1777 -1784&nbsp;</td>
+	<td>inproceedings</td>
+	<td><a href="http://dx.doi.org/10.1109/CEC.2008.4631030">DOI</a> &nbsp;</td>
+</tr>
+<tr id="abs_Hsieh2007cecss" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: As more and more real-world optimization problems become increasingly complex, algorithms with more capable optimizations are also increasing in demand. For solving large scale global optimization problems, this paper presents a variation on the traditional PSO algorithm, called the efficient population utilization strategy for particle swarm optimizer (EPUS-PSO). This is achieved by using variable particles in swarms to enhance the searching ability and drive particles more efficiently. Moreover, sharing principals are constructed to stop particles from falling into the local minimum and make the global optimal solution easier found by particles. Experiments were conducted on 7 CEC 2008 test functions to present solution searching ability of the proposed method.</td>
+</tr>
+<tr id="bib_Hsieh2007cecss" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{Hsieh2007cecss,
+  author = {Sheng-Ta Hsieh and Tsung-Ying Sun and Chan-Cheng Liu and Shang-Jeng Tsai},
+  title = {Solving large scale global optimization using improved Particle Swarm Optimizer},
+  journal = {Evolutionary Computation, 2008. CEC 2008. (IEEE World Congress on Computational Intelligence). IEEE Congress on},
+  year = {2008},
+  pages = {1777 -1784},
+  doi = {http://dx.doi.org/10.1109/CEC.2008.4631030}
+}
+</pre></td>
+</tr>
+<tr id="hu2008evolvability" class="entry">
+	<td>Hu, T. &amp; Banzhaf, W.</td>
+	<td>Evolvability and Acceleration in Evolutionary Computation <p class="infolinks">[<a href="javascript:toggleInfo('hu2008evolvability','bibtex')">BibTeX</a>]</p></td>
+	<td>2008</td>
+	<td>&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_hu2008evolvability" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{hu2008evolvability,
+  author = {Hu, T. and Banzhaf, W.},
+  title = {Evolvability and Acceleration in Evolutionary Computation},
+  year = {2008}
+}
+</pre></td>
+</tr>
+<tr id="gecco2009huang" class="entry">
+	<td>Huang, Y.-W. &amp; Chen, Y.-p.</td>
+	<td>On the detection of general problem structures by using inductive linkage identification <p class="infolinks">[<a href="javascript:toggleInfo('gecco2009huang','bibtex')">BibTeX</a>]</p></td>
+	<td>2009</td>
+	<td>GECCO '09: Proceedings of the 11th Annual conference on Genetic and evolutionary computation, pp. 1853-1854&nbsp;</td>
+	<td>inproceedings</td>
+	<td><a href="http://doi.acm.org/10.1145/1569901.1570200">DOI</a> &nbsp;</td>
+</tr>
+<tr id="bib_gecco2009huang" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{gecco2009huang,
+  author = {Huang, Yuan-Wei and Chen, Ying-ping},
+  title = {On the detection of general problem structures by using inductive linkage identification},
+  booktitle = {GECCO '09: Proceedings of the 11th Annual conference on Genetic and evolutionary computation},
+  publisher = {ACM},
+  year = {2009},
+  pages = {1853--1854},
+  doi = {http://doi.acm.org/10.1145/1569901.1570200}
+}
+</pre></td>
+</tr>
+<tr id="icga91Husbands" class="entry">
+	<td>Husbands, P. &amp; Mill, F.</td>
+	<td>Simulated co-evolution as the mechanism for emergent planning and scheduling <p class="infolinks">[<a href="javascript:toggleInfo('icga91Husbands','bibtex')">BibTeX</a>]</p></td>
+	<td>1991</td>
+	<td>4th Intl. Conf. on Genetic Algorithms, pp. 264-270&nbsp;</td>
+	<td>conference</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_icga91Husbands" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@conference{icga91Husbands,
+  author = {Husbands, P. and Mill, F.},
+  title = {Simulated co-evolution as the mechanism for emergent planning and scheduling},
+  booktitle = {4th Intl. Conf. on Genetic Algorithms},
+  year = {1991},
+  pages = {264--270}
+}
+</pre></td>
+</tr>
+<tr id="iorio2004CC" class="entry">
+	<td>Iorio, A. &amp; Li, X.</td>
+	<td>A cooperative coevolutionary multiobjective algorithm using non-dominated sorting <p class="infolinks">[<a href="javascript:toggleInfo('iorio2004CC','bibtex')">BibTeX</a>]</p></td>
+	<td>2004</td>
+	<td>Genetic and Evolutionary Computation--GECCO 2004, pp. 537-548&nbsp;</td>
+	<td>conference</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_iorio2004CC" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@conference{iorio2004CC,
+  author = {Iorio, A.W. and Li, X.},
+  title = {A cooperative coevolutionary multiobjective algorithm using non-dominated sorting},
+  booktitle = {Genetic and Evolutionary Computation--GECCO 2004},
+  year = {2004},
+  pages = {537--548}
+}
+</pre></td>
+</tr>
+<tr id="KumarRay2010ABES" class="entry">
+	<td>Kumar, H.S. &amp; Ray, T.</td>
+	<td>Divide and Conquer in Coevolution: A Difficult Balancing Act <p class="infolinks">[<a href="javascript:toggleInfo('KumarRay2010ABES','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('KumarRay2010ABES','bibtex')">BibTeX</a>]</p></td>
+	<td>2010</td>
+	<td><br/>Vol. 5Agent-Based Evolutionary Search, pp. 117-138&nbsp;</td>
+	<td>incollection</td>
+	<td><a href="http://dx.doi.org/10.1007/978-3-642-13425-8_6">URL</a>&nbsp;</td>
+</tr>
+<tr id="abs_KumarRay2010ABES" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: In recent years, Cooperative Coevolutionary Evolutionary Algorithms (CCEAs) have been developed as extensions to traditional Evolutionary Algorithms (EAs). CCEAs attempt to solve the optimization problems by decomposing them into subcomponents referred to as collaborators. CCEAs have been deemed attractive for certain complex problems (with high number of decision variables), as they can achieve better fitness values than traditional EAs by employing divide and conquer strategy. However, their performance can vary from good to bad depending on the choice of collaborators, separability of problem and the underlying recombination scheme. This chapter highlights that a basic CCEA is inadequate to handle a wide variety of problems. Thereafter, a CCEA with adaptive partitioning (CCEA-AVP) has been introduced, which attempts to chose the collaborators adaptively during the search, depending on the relationships between the design variables. Studies have been done on various test functions and the proposed technique has been compared with conventional EA as well as conventional CCEA to highlight the benefits. A number of areas of further research in CCEA are highlighted to fully exploit the benefits of coevolution.</td>
+</tr>
+<tr id="bib_KumarRay2010ABES" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@incollection{KumarRay2010ABES,
+  author = {Hemant Singh Kumar and Tapabrata Ray},
+  title = {Divide and Conquer in Coevolution: A Difficult Balancing Act},
+  booktitle = {Agent-Based Evolutionary Search},
+  publisher = {Springer Berlin Heidelberg},
+  year = {2010},
+  volume = {5},
+  pages = {117-138},
+  note = {10.1007/978-3-642-13425-8_6},
+  url = {http://dx.doi.org/10.1007/978-3-642-13425-8_6}
+}
+</pre></td>
+</tr>
+<tr id="tecLeeY04" class="entry">
+	<td>Lee, C.-Y. &amp; Yao, X.</td>
+	<td>Evolutionary programming using mutations based on the L&eacute;vy probability distribution <p class="infolinks">[<a href="javascript:toggleInfo('tecLeeY04','bibtex')">BibTeX</a>]</p></td>
+	<td>2004</td>
+	<td>IEEE Transaction on Evolutionary Computation<br/>Vol. 8(1), pp. 1-13&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_tecLeeY04" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{tecLeeY04,
+  author = {Chang-Yong Lee and Xin Yao},
+  title = {Evolutionary programming using mutations based on the L&eacute;vy probability distribution},
+  journal = {IEEE Transaction on Evolutionary Computation},
+  year = {2004},
+  volume = {8},
+  number = {1},
+  pages = {1-13}
+}
+</pre></td>
+</tr>
+<tr id="LiKangWu2003cec" class="entry">
+	<td>Li, J., Kang, L. &amp; Wu, Z.</td>
+	<td>An adaptive neighborhood-based multi-parent crossover operator for real-coded genetic algorithms <p class="infolinks">[<a href="javascript:toggleInfo('LiKangWu2003cec','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('LiKangWu2003cec','bibtex')">BibTeX</a>]</p></td>
+	<td>2003</td>
+	<td><br/>Vol. 1Evolutionary Computation, 2003. CEC '03. The 2003 Congress on, pp.  14 - 21 Vol.1&nbsp;</td>
+	<td>inproceedings</td>
+	<td><a href="http://dx.doi.org/10.1109/CEC.2003.1299551">DOI</a> &nbsp;</td>
+</tr>
+<tr id="abs_LiKangWu2003cec" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: In this paper, we propose the adaptive neighborhood-based multi-parent cross-over operator (ANMX), a novel search operator for real-coded genetic algorithms, which generates offspring by the linear non-convex combination of several relative-parents, each of which is uniformly sampled in the respective neighborhoods of randomly selected parents in the population. ANMX is a general variation operator in essence, for it not only takes on the form of a multi-parent crossover operator but also implicitly has some of the characteristics of a mutation operator. To enhance the efficiency, we introduce a mechanism for adapting the range of neighborhoods according to the evolutionary progress. Numerical experiments using a suite of test functions, which are widely studied in the field of evolutionary computation, show good search ability of the proposed operator for functions with multimodality and/or epistasis.</td>
+</tr>
+<tr id="bib_LiKangWu2003cec" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{LiKangWu2003cec,
+  author = {Jhingzi Li and Lishan Kang and Zhijian Wu},
+  title = {An adaptive neighborhood-based multi-parent crossover operator for real-coded genetic algorithms},
+  booktitle = {Evolutionary Computation, 2003. CEC '03. The 2003 Congress on},
+  year = {2003},
+  volume = {1},
+  pages = { 14 - 21 Vol.1},
+  doi = {http://dx.doi.org/10.1109/CEC.2003.1299551}
+}
+</pre></td>
+</tr>
+<tr id="liang2006NC" class="entry">
+	<td>Liang, J., Baskar, S., Suganthan, P. &amp; Qin, A.</td>
+	<td>Performance Evaluation of Multiagent Genetic Algorithm <p class="infolinks">[<a href="javascript:toggleInfo('liang2006NC','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('liang2006NC','bibtex')">BibTeX</a>]</p></td>
+	<td>2006</td>
+	<td>Natural Computing<br/>Vol. 5, pp. 83-96&nbsp;</td>
+	<td>article</td>
+	<td><a href="http://dx.doi.org/10.1007/s11047-005-1625-y">URL</a>&nbsp;</td>
+</tr>
+<tr id="abs_liang2006NC" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: Zhong et al. (2004 [IEEE Trans. on Systems, Man and Cybernetics (Part B), 34: 1128–1141]) proposed the multiagent genetic algorithm (MAGA) in their publication titled A multiagent genetic algorithm for global numerical optimization . The MAGA exploits the known characteristics of some benchmark functions to achieve outstanding results. For example, the MAGA exploits the fact that all variables have the same numerical value at the global optimum and the same upper and lower bounds to solve several 100 dimensional and 1000 dimensional benchmark problems with high precision requiring on average 7000 and 16,000 function evaluations respectively. In this paper, we evaluate the performance of the MAGA experimentally1 and demonstrate that the performance of the MAGA significantly deteriorates when the relative positions of the variables at the global optimal point are shifted with respect to the search ranges.</td>
+</tr>
+<tr id="bib_liang2006NC" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{liang2006NC,
+  author = {Liang, J. and Baskar, S. and Suganthan, P. and Qin, A.},
+  title = {Performance Evaluation of Multiagent Genetic Algorithm},
+  journal = {Natural Computing},
+  publisher = {Springer Netherlands},
+  year = {2006},
+  volume = {5},
+  pages = {83-96},
+  note = {10.1007/s11047-005-1625-y},
+  url = {http://dx.doi.org/10.1007/s11047-005-1625-y}
+}
+</pre></td>
+</tr>
+<tr id="liang2006performance" class="entry">
+	<td>Liang, J., Baskar, S., Suganthan, P. &amp; Qin, A.</td>
+	<td>Performance evaluation of multiagent genetic algorithm <p class="infolinks">[<a href="javascript:toggleInfo('liang2006performance','bibtex')">BibTeX</a>]</p></td>
+	<td>2006</td>
+	<td>Natural Computing<br/>Vol. 5(1), pp. 83-96&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_liang2006performance" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{liang2006performance,
+  author = {Liang, JJ and Baskar, S. and Suganthan, PN and Qin, AK},
+  title = {Performance evaluation of multiagent genetic algorithm},
+  journal = {Natural Computing},
+  publisher = {Springer},
+  year = {2006},
+  volume = {5},
+  number = {1},
+  pages = {83--96}
+}
+</pre></td>
+</tr>
+<tr id="liang2005novelBenchmark" class="entry">
+	<td>Liang, J., Suganthan, P. &amp; Deb, K.</td>
+	<td>Novel composition test functions for numerical global optimization <p class="infolinks">[<a href="javascript:toggleInfo('liang2005novelBenchmark','bibtex')">BibTeX</a>]</p></td>
+	<td>2005</td>
+	<td>Proceedings 2005 IEEE Swarm Intelligence Symposium, 2005. SIS 2005, pp. 68-75&nbsp;</td>
+	<td>conference</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_liang2005novelBenchmark" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@conference{liang2005novelBenchmark,
+  author = {Liang, JJ and Suganthan, PN and Deb, K.},
+  title = {Novel composition test functions for numerical global optimization},
+  booktitle = {Proceedings 2005 IEEE Swarm Intelligence Symposium, 2005. SIS 2005},
+  year = {2005},
+  pages = {68--75}
+}
+</pre></td>
+</tr>
+<tr id="liu2005fuzzy" class="entry">
+	<td>Liu, J. &amp; Lampinen, J.</td>
+	<td>A Fuzzy Adaptive Differential Evolution Algorithm <p class="infolinks">[<a href="javascript:toggleInfo('liu2005fuzzy','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('liu2005fuzzy','review')">Review</a>] [<a href="javascript:toggleInfo('liu2005fuzzy','bibtex')">BibTeX</a>]</p></td>
+	<td>2005</td>
+	<td>Soft Computing - A Fusion of Foundations, Methodologies and Applications<br/>Vol. 9, pp. 448-462&nbsp;</td>
+	<td>article</td>
+	<td><a href="http://dx.doi.org/10.1007/s00500-004-0363-x">URL</a>&nbsp;</td>
+</tr>
+<tr id="abs_liu2005fuzzy" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: The differential evolution algorithm is a floating-point encoded evolutionary algorithm for global optimization over continuous spaces. The algorithm has so far used empirically chosen values for its search parameters that are kept fixed through an optimization process. The objective of this paper is to introduce a new version of the Differential Evolution algorithm with adaptive control parameters – the fuzzy adaptive differential evolution algorithm, which uses fuzzy logic controllers to adapt the search parameters for the mutation operation and crossover operation. The control inputs incorporate the relative objective function values and individuals of the successive generations. The emphasis of this paper is analysis of the dynamics and behavior of the algorithm. Experimental results, provided by the proposed algorithm for a set of standard test functions, outperformed those of the standard differential evolution algorithm for optimization problems with higher dimensionality.</td>
+</tr>
+<tr id="rev_liu2005fuzzy" class="review noshow">
+	<td colspan="6"><b>Review</b>: 1. Fuzzy control that applied in FADE is used for adapting the control parameter $CR$ and $F$<br>2. The so-call high dimension is only up to 50, which can be hardly considered as large-scale problem.<br>3. The experimental result is only compared with naive DE, which can't necessarily confirm the strength of FADE over other the state of the art DE variant.</td>
+</tr>
+<tr id="bib_liu2005fuzzy" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{liu2005fuzzy,
+  author = {Liu, J. and Lampinen, J.},
+  title = {A Fuzzy Adaptive Differential Evolution Algorithm},
+  journal = {Soft Computing - A Fusion of Foundations, Methodologies and Applications},
+  publisher = {Springer Berlin / Heidelberg},
+  year = {2005},
+  volume = {9},
+  pages = {448-462},
+  note = {10.1007/s00500-004-0363-x},
+  url = {http://dx.doi.org/10.1007/s00500-004-0363-x}
+}
+</pre></td>
+</tr>
+<tr id="FEPCC" class="entry">
+	<td>Liu, Y., Yao, X., Zhao, Q. &amp; Higuchi, T.</td>
+	<td>Scaling Up Fast Evolutionary Programming with Cooperative Coevolution <p class="infolinks">[<a href="javascript:toggleInfo('FEPCC','bibtex')">BibTeX</a>]</p></td>
+	<td>2001</td>
+	<td><br/>Vol. 2IEEE Congress on Evolutionary Computation, pp. 1101-1108&nbsp;</td>
+	<td>inproceedings</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_FEPCC" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{FEPCC,
+  author = {Yong Liu and Xin Yao and Qiangu Zhao and Tetsuya Higuchi},
+  title = {Scaling Up Fast Evolutionary Programming with Cooperative Coevolution},
+  booktitle = {IEEE Congress on Evolutionary Computation},
+  publisher = {IEEE Press},
+  year = {2001},
+  volume = {2},
+  pages = {1101--1108}
+}
+</pre></td>
+</tr>
+<tr id="lush1935progeny" class="entry">
+	<td>Lush, J.</td>
+	<td>Progeny test and individual performance as indicators of an animal's breeding value <p class="infolinks">[<a href="javascript:toggleInfo('lush1935progeny','bibtex')">BibTeX</a>]</p></td>
+	<td>1935</td>
+	<td>Journal of Dairy Science<br/>Vol. 18(1), pp. 1-19&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_lush1935progeny" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{lush1935progeny,
+  author = {Lush, J.L.},
+  title = {Progeny test and individual performance as indicators of an animal's breeding value},
+  journal = {Journal of Dairy Science},
+  publisher = {Elsevier},
+  year = {1935},
+  volume = {18},
+  number = {1},
+  pages = {1--19}
+}
+</pre></td>
+</tr>
+<tr id="MacNish2008cecss" class="entry">
+	<td>MacNish, C. &amp; Yao, X.</td>
+	<td>Direction matters in high-dimensional optimisation <p class="infolinks">[<a href="javascript:toggleInfo('MacNish2008cecss','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('MacNish2008cecss','bibtex')">BibTeX</a>]</p></td>
+	<td>2008</td>
+	<td>Evolutionary Computation, 2008. CEC 2008. (IEEE World Congress on Computational Intelligence). IEEE Congress on, pp. 2372 -2379&nbsp;</td>
+	<td>inproceedings</td>
+	<td><a href="http://dx.doi.org/10.1109/CEC.2008.4631115">DOI</a> &nbsp;</td>
+</tr>
+<tr id="abs_MacNish2008cecss" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: Directional biases are evident in many benchmarking problems for real-valued global optimisation, as well as many of the evolutionary and allied algorithms that have been proposed for solving them. It has been shown that directional biases make some kinds of problems easier to solve for similarly biased algorithms, which can give a misleading view of algorithm performance. In this paper we study the effects of directional bias for high- dimensional optimisation problems. We show that the impact of directional bias is magnified as dimension increases, and can in some cases lead to differences in performance of many orders of magnitude. We present a new version of the classical evolutionary programming algorithm, which we call unbiased evolutionary programming (UEP), and show that it has markedly improved performance for high-dimensional optimisation.</td>
+</tr>
+<tr id="bib_MacNish2008cecss" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{MacNish2008cecss,
+  author = {MacNish, C. and Xin Yao},
+  title = {Direction matters in high-dimensional optimisation},
+  journal = {Evolutionary Computation, 2008. CEC 2008. (IEEE World Congress on Computational Intelligence). IEEE Congress on},
+  year = {2008},
+  pages = {2372 -2379},
+  doi = {http://dx.doi.org/10.1109/CEC.2008.4631115}
+}
+</pre></td>
+</tr>
+<tr id="euclid.aoms" class="entry">
+	<td>Mann, H.B. &amp; Whitney, D.R.</td>
+	<td>On a Test of whether One of Two Random Variables is Stochastically Larger than the Other <p class="infolinks">[<a href="javascript:toggleInfo('euclid.aoms','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('euclid.aoms','bibtex')">BibTeX</a>]</p></td>
+	<td>1947</td>
+	<td>The Annals of Mathematical Statistics<br/>Vol. 18(1), pp. 50-60&nbsp;</td>
+	<td>article</td>
+	<td><a href="http://dx.doi.org/10.1214/aoms/1177730491">DOI</a> &nbsp;</td>
+</tr>
+<tr id="abs_euclid.aoms" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: Let $x$ and $y$ be two random variables with continuous cumulative distribution functions $f$ and $g$. A statistic $U$ depending on the relative ranks of the $x$'s and $y$'s is proposed for testing the hypothesis $f = g$. Wilcoxon proposed an equivalent test in the Biometrics Bulletin, December, 1945, but gave only a few points of the distribution of his statistic. Under the hypothesis $f = g$ the probability of obtaining a given $U$ in a sample of $n x's$ and $m y's$ is the solution of a certain recurrence relation involving $n$ and $m$. Using this recurrence relation tables have been computed giving the probability of $U$ for samples up to $n = m = 8$. At this point the distribution is almost normal. From the recurrence relation explicit expressions for the mean, variance, and fourth moment are obtained. The 2rth moment is shown to have a certain form which enabled us to prove that the limit distribution is normal if $m, n$ go to infinity in any arbitrary manner. The test is shown to be consistent with respect to the class of alternatives $f(x) > g(x)$ for every $x$.</td>
+</tr>
+<tr id="bib_euclid.aoms" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{euclid.aoms,
+  author = {Henry B. Mann and Donald R. Whitney},
+  title = {On a Test of whether One of Two Random Variables is Stochastically Larger than the Other},
+  journal = {The Annals of Mathematical Statistics},
+  publisher = {Institute of Mathematical Statistics},
+  year = {1947},
+  volume = {18},
+  number = {1},
+  pages = {50--60},
+  doi = {http://dx.doi.org/10.1214/aoms/1177730491}
+}
+</pre></td>
+</tr>
+<tr id="pelikan2009performance" class="entry">
+	<td>Martin Pelikan, Kumara Sastry, D.E.G.M.V.B. &amp; Hauschild, M.</td>
+	<td>Performance of evolutionary algorithms on nk landscapes with nearest neighbor interactions and tunable overlap (MEDAL Report No. 2009002) <p class="infolinks">[<a href="javascript:toggleInfo('pelikan2009performance','bibtex')">BibTeX</a>]</p></td>
+	<td>2009</td>
+	<td>Missouri Estimation of Distribution Algorithms Laboratory, University of Missour--St. Louis, St. Louis, MO&nbsp;</td>
+	<td>techreport</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_pelikan2009performance" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@techreport{pelikan2009performance,
+  author = {Martin Pelikan, Kumara Sastry, David E. Goldberg, Martin V. Butz, and Mark Hauschild},
+  title = {Performance of evolutionary algorithms on nk landscapes with nearest neighbor interactions and tunable overlap (MEDAL Report No. 2009002)},
+  journal = {Missouri Estimation of Distribution Algorithms Laboratory, University of Missour--St. Louis, St. Louis, MO},
+  year = {2009}
+}
+</pre></td>
+</tr>
+<tr id="NumericalLSGO" class="entry">
+	<td>Martin, A.</td>
+	<td>LARGE-SCALE OPTIMIZATION <p class="infolinks">[<a href="javascript:toggleInfo('NumericalLSGO','bibtex')">BibTeX</a>]</p></td>
+	<td></td>
+	<td>OPTIMIZATION AND OPERATIONS RESEARCH&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_NumericalLSGO" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{NumericalLSGO,
+  author = {Alexander Martin},
+  title = {LARGE-SCALE OPTIMIZATION},
+  journal = {OPTIMIZATION AND OPERATIONS RESEARCH}
+}
+</pre></td>
+</tr>
+<tr id="Mengshoel98deceptiveand" class="entry">
+	<td>Mengshoel, O.J., Goldberg, D.E. &amp; Wilkins, D.C.</td>
+	<td>Deceptive and Other Functions of Unitation as Bayesian Networks <p class="infolinks">[<a href="javascript:toggleInfo('Mengshoel98deceptiveand','bibtex')">BibTeX</a>]</p></td>
+	<td>1998</td>
+	<td>&nbsp;</td>
+	<td>misc</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_Mengshoel98deceptiveand" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@misc{Mengshoel98deceptiveand,
+  author = {Ole J. Mengshoel and David E. Goldberg and David C. Wilkins},
+  title = {Deceptive and Other Functions of Unitation as Bayesian Networks},
+  year = {1998}
+}
+</pre></td>
+</tr>
+<tr id="naudts1996epistasis" class="entry">
+	<td>Naudts, B., Verschoren, A. &amp; Antwerp, B.</td>
+	<td>Epistasis on finite and infinite spaces <p class="infolinks">[<a href="javascript:toggleInfo('naudts1996epistasis','bibtex')">BibTeX</a>]</p></td>
+	<td>1996</td>
+	<td>8th Int. Conf. on Systems Research, Informatics and Cybernetics, pp. 19-23&nbsp;</td>
+	<td>conference</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_naudts1996epistasis" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@conference{naudts1996epistasis,
+  author = {Naudts, B. and Verschoren, A. and Antwerp, B.},
+  title = {Epistasis on finite and infinite spaces},
+  booktitle = {8th Int. Conf. on Systems Research, Informatics and Cybernetics},
+  year = {1996},
+  pages = {19--23}
+}
+</pre></td>
+</tr>
+<tr id="FerranteVille2010AIR" class="entry">
+	<td>Neri, F. &amp; Tirronen, V.</td>
+	<td>Recent advances in differential evolution: a survey and experimental analysis <p class="infolinks">[<a href="javascript:toggleInfo('FerranteVille2010AIR','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('FerranteVille2010AIR','bibtex')">BibTeX</a>]</p></td>
+	<td>2010</td>
+	<td>Artificial Intelligence Review<br/>Vol. 33, pp. 61-106&nbsp;</td>
+	<td>article</td>
+	<td><a href="http://dx.doi.org/10.1007/s10462-009-9137-2">URL</a>&nbsp;</td>
+</tr>
+<tr id="abs_FerranteVille2010AIR" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: Differential Evolution (DE) is a simple and efficient optimizer, especially for continuous optimization. For these reasons DE has often been employed for solving various engineering problems. On the other hand, the DE structure has some limitations in the search logic, since it contains too narrow a set of exploration moves. This fact has inspired many computer scientists to improve upon DE by proposing modifications to the original algorithm. This paper presents a survey on DE and its recent advances. A classification, into two macro-groups, of the DE modifications is proposed here: (1) algorithms which integrate additional components within the DE structure, (2) algorithms which employ a modified DE structure. For each macro-group, four algorithms representative of the state-of-the-art in DE, have been selected for an in depth description of their working principles. In order to compare their performance, these eight algorithm have been tested on a set of benchmark problems. Experiments have been repeated for a (relatively) low dimensional case and a (relatively) high dimensional case. The working principles, differences and similarities of these recently proposed DE-based algorithms have also been highlighted throughout the paper. Although within both macro-groups, it is unclear whether there is a superiority of one algorithm with respect to the others, some conclusions can be drawn. At first, in order to improve upon the DE performance a modification which includes some additional and alternative search moves integrating those contained in a standard DE is necessary. These extra moves should assist the DE framework in detecting new promising search directions to be used by DE. Thus, a limited employment of these alternative moves appears to be the best option in successfully assisting DE. The successful extra moves are obtained in two ways: an increase in the exploitative pressure and the introduction of some randomization. This randomization should not be excessive though, since it would jeopardize the search. A proper increase in the randomization is crucial for obtaining significant improvements in the DE functioning. Numerical results show that, among the algorithms considered in this study, the most efficient additional components in a DE framework appear to be the population size reduction and the scale factor local search. Regarding the modified DE structures, the global and local neighborhood search and self-adaptive control parameter scheme, recently proposed in literature, seem to be the most promising modifications.</td>
+</tr>
+<tr id="bib_FerranteVille2010AIR" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{FerranteVille2010AIR,
+  author = {Neri, Ferrante and Tirronen, Ville},
+  title = {Recent advances in differential evolution: a survey and experimental analysis},
+  journal = {Artificial Intelligence Review},
+  publisher = {Springer Netherlands},
+  year = {2010},
+  volume = {33},
+  pages = {61-106},
+  note = {10.1007/s10462-009-9137-2},
+  url = {http://dx.doi.org/10.1007/s10462-009-9137-2}
+}
+</pre></td>
+</tr>
+<tr id="NomanIba2008TEVC" class="entry">
+	<td>Noman., N. &amp; Iba, H.</td>
+	<td>Accelerating Differential Evolution Using an Adaptive Local Search <p class="infolinks">[<a href="javascript:toggleInfo('NomanIba2008TEVC','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('NomanIba2008TEVC','bibtex')">BibTeX</a>]</p></td>
+	<td>2008</td>
+	<td>Evolutionary Computation, IEEE Transactions on<br/>Vol. 12(1), pp. 107 -125&nbsp;</td>
+	<td>article</td>
+	<td><a href="http://dx.doi.org/10.1109/TEVC.2007.895272">DOI</a> &nbsp;</td>
+</tr>
+<tr id="abs_NomanIba2008TEVC" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: We propose a crossover-based adaptive local search (LS) operation for enhancing the performance of standard differential evolution (DE) algorithm. Incorporating LS heuristics is often very useful in designing an effective evolutionary algorithm for global optimization. However, determining a single LS length that can serve for a wide range of problems is a critical issue. We present a LS technique to solve this problem by adaptively adjusting the length of the search, using a hill-climbing heuristic. The emphasis of this paper is to demonstrate how this LS scheme can improve the performance of DE. Experimenting with a wide range of benchmark functions, we show that the proposed new version of DE, with the adaptive LS, performs better, or at least comparably, to classic DE algorithm. Performance comparisons with other LS heuristics and with some other well-known evolutionary algorithms from literature are also presented.</td>
+</tr>
+<tr id="bib_NomanIba2008TEVC" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{NomanIba2008TEVC,
+  author = {Nasimul Noman. and Hitoshi Iba},
+  title = {Accelerating Differential Evolution Using an Adaptive Local Search},
+  journal = {Evolutionary Computation, IEEE Transactions on},
+  year = {2008},
+  volume = {12},
+  number = {1},
+  pages = {107 -125},
+  doi = {http://dx.doi.org/10.1109/TEVC.2007.895272}
+}
+</pre></td>
+</tr>
+<tr id="Nomura97ananalysis" class="entry">
+	<td>Nomura, T.</td>
+	<td>An Analysis on Crossovers for Real Number Chromosomes in an Infinite Population Size <p class="infolinks">[<a href="javascript:toggleInfo('Nomura97ananalysis','bibtex')">BibTeX</a>]</p></td>
+	<td>1997</td>
+	<td>Proc. International Joint Conference on Artificial Intelligence (IJCAI-97), pp. 936-941&nbsp;</td>
+	<td>inproceedings</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_Nomura97ananalysis" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{Nomura97ananalysis,
+  author = {Tatsuya Nomura},
+  title = {An Analysis on Crossovers for Real Number Chromosomes in an Infinite Population Size},
+  booktitle = {Proc. International Joint Conference on Artificial Intelligence (IJCAI-97)},
+  year = {1997},
+  pages = {936--941}
+}
+</pre></td>
+</tr>
+<tr id="JAIR2005Ortiz" class="entry">
+	<td>Ortiz-Boyer, D., Herv&aacute;s-Mart&iacute;nez, C. &amp; Garc&iacute;a-Pedrajas, N.</td>
+	<td>CIXL2 - A crossover operator for evolutionary algorithms based on population features <p class="infolinks">[<a href="javascript:toggleInfo('JAIR2005Ortiz','bibtex')">BibTeX</a>]</p></td>
+	<td>2005</td>
+	<td>Journal of Artifical Intelligence Research<br/>Vol. 24, pp. 2005&nbsp;</td>
+	<td>article</td>
+	<td><a href="http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.72.7853">DOI</a> &nbsp;</td>
+</tr>
+<tr id="bib_JAIR2005Ortiz" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{JAIR2005Ortiz,
+  author = {Domingo Ortiz-Boyer and C&eacute;sar Herv&aacute;s-Mart&iacute;nez and Nicol&aacute;s Garc&iacute;a-Pedrajas},
+  title = {CIXL2 - A crossover operator for evolutionary algorithms based on population features},
+  journal = {Journal of Artifical Intelligence Research},
+  year = {2005},
+  volume = {24},
+  pages = {2005},
+  doi = {http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.72.7853}
+}
+</pre></td>
+</tr>
+<tr id="Pelikan2010gecco" class="entry">
+	<td>Pelikan, M.</td>
+	<td>NK landscapes, problem difficulty, and hybrid evolutionary algorithms <p class="infolinks">[<a href="javascript:toggleInfo('Pelikan2010gecco','bibtex')">BibTeX</a>]</p></td>
+	<td>2010</td>
+	<td>GECCO '10: Proceedings of the 12th annual conference on Genetic and evolutionary computation, pp. 665-672&nbsp;</td>
+	<td>inproceedings</td>
+	<td><a href="http://doi.acm.org/10.1145/1830483.1830606">DOI</a> &nbsp;</td>
+</tr>
+<tr id="bib_Pelikan2010gecco" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{Pelikan2010gecco,
+  author = {Martin Pelikan},
+  title = {NK landscapes, problem difficulty, and hybrid evolutionary algorithms},
+  booktitle = {GECCO '10: Proceedings of the 12th annual conference on Genetic and evolutionary computation},
+  publisher = {ACM},
+  year = {2010},
+  pages = {665--672},
+  doi = {http://doi.acm.org/10.1145/1830483.1830606}
+}
+</pre></td>
+</tr>
+<tr id="Pelikan2010geccoSlides" class="entry">
+	<td>Pelikan, M.</td>
+	<td>NK landscapes, problem difficulty, and hybrid evolutionary algorithms <p class="infolinks">[<a href="javascript:toggleInfo('Pelikan2010geccoSlides','bibtex')">BibTeX</a>]</p></td>
+	<td>2010</td>
+	<td>GECCO '10: Proceedings of the 12th annual conference on Genetic and evolutionary computation&nbsp;</td>
+	<td>misc</td>
+	<td><a href="http://medal.cs.umsl.edu/files/2010001.pdf">DOI</a> &nbsp;</td>
+</tr>
+<tr id="bib_Pelikan2010geccoSlides" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@misc{Pelikan2010geccoSlides,
+  author = {Martin Pelikan},
+  title = {NK landscapes, problem difficulty, and hybrid evolutionary algorithms},
+  booktitle = {GECCO '10: Proceedings of the 12th annual conference on Genetic and evolutionary computation},
+  year = {2010},
+  doi = {http://medal.cs.umsl.edu/files/2010001.pdf}
+}
+</pre></td>
+</tr>
+<tr id="pelikan2000linkage" class="entry">
+	<td>Pelikan, M., Goldberg, D.E. &amp; Cant&uacute;-Paz, E.</td>
+	<td>Linkage problem, distribution estimation, and Bayesian networks <p class="infolinks">[<a href="javascript:toggleInfo('pelikan2000linkage','review')">Review</a>] [<a href="javascript:toggleInfo('pelikan2000linkage','bibtex')">BibTeX</a>]</p></td>
+	<td>2000</td>
+	<td>Evolutionary Computation<br/>Vol. 8(3), pp. 340&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="rev_pelikan2000linkage" class="review noshow">
+	<td colspan="6"><b>Review</b>: 1. Propose a new modeling-based algorithm Bayesian Optimization Algorithm (BOA).<br>2. BOA belongs to the class of EDA, it can discover the interactions during optimization.<br>3. The upper limit for recognized order of interaction, says k, is define by user.<p>Weakness:<br>4. The prior information about the structure of problem, i.e., the highest possible order of interactions is required.</td>
+</tr>
+<tr id="bib_pelikan2000linkage" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{pelikan2000linkage,
+  author = {Martin Pelikan and David E. Goldberg and Erick Cant&uacute;-Paz},
+  title = {Linkage problem, distribution estimation, and Bayesian networks},
+  journal = {Evolutionary Computation},
+  publisher = {MIT Press},
+  year = {2000},
+  volume = {8},
+  number = {3},
+  pages = {340}
+}
+</pre></td>
+</tr>
+<tr id="pelikan2006performance" class="entry">
+	<td>Pelikan, M., Sastry, K., Butz, M.V. &amp; Goldberg, D.E.</td>
+	<td>Performance of evolutionary algorithms on random decomposable problems <p class="infolinks">[<a href="javascript:toggleInfo('pelikan2006performance','bibtex')">BibTeX</a>]</p></td>
+	<td>2006</td>
+	<td>Parallel Problem Solving from Nature-PPSN IX, pp. 788-797&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_pelikan2006performance" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{pelikan2006performance,
+  author = {Martin Pelikan and Kumara Sastry and Martin V. Butz and David E. Goldberg},
+  title = {Performance of evolutionary algorithms on random decomposable problems},
+  journal = {Parallel Problem Solving from Nature-PPSN IX},
+  publisher = {Springer},
+  year = {2006},
+  pages = {788--797}
+}
+</pre></td>
+</tr>
+<tr id="p851-pelikan" class="entry">
+	<td>Pelikan, M., Sastry, K., Goldberg, D.E., Butz, M.V. &amp; Hauschild, M.</td>
+	<td>Performance of evolutionary algorithms on NK landscapes with nearest neighbor interactions and tunable overlap <p class="infolinks">[<a href="javascript:toggleInfo('p851-pelikan','bibtex')">BibTeX</a>]</p></td>
+	<td>2009</td>
+	<td>GECCO '09: Proceedings of the 11th Annual conference on Genetic and evolutionary computation, pp. 851-858&nbsp;</td>
+	<td>inproceedings</td>
+	<td><a href="http://doi.acm.org/10.1145/1569901.1570018">DOI</a> &nbsp;</td>
+</tr>
+<tr id="bib_p851-pelikan" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{p851-pelikan,
+  author = {Martin Pelikan and Kumara Sastry and David E. Goldberg and Martin V. Butz and Mark Hauschild},
+  title = {Performance of evolutionary algorithms on NK landscapes with nearest neighbor interactions and tunable overlap},
+  booktitle = {GECCO '09: Proceedings of the 11th Annual conference on Genetic and evolutionary computation},
+  publisher = {ACM},
+  year = {2009},
+  pages = {851--858},
+  doi = {http://doi.acm.org/10.1145/1569901.1570018}
+}
+</pre></td>
+</tr>
+<tr id="rJADE" class="entry">
+	<td>Peng, F., Tang, K., Chen, G. &amp; Yao, X.</td>
+	<td>Multi-Start JADE with Knowledge Transfer for Numerical Optimization <p class="infolinks">[<a href="javascript:toggleInfo('rJADE','bibtex')">BibTeX</a>]</p></td>
+	<td>2009</td>
+	<td>IEEE Congress on Evolutionary Computation, pp. 1889-1895&nbsp;</td>
+	<td>inproceedings</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_rJADE" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{rJADE,
+  author = {Fei Peng and Ke Tang and Guoliang Chen and Xin Yao},
+  title = {Multi-Start JADE with Knowledge Transfer for Numerical Optimization},
+  booktitle = {IEEE Congress on Evolutionary Computation},
+  publisher = {IEEE Press},
+  year = {2009},
+  pages = {1889--1895}
+}
+</pre></td>
+</tr>
+<tr id="phillips1998language" class="entry">
+	<td>Phillips, P.C.</td>
+	<td>The Language of Gene Interaction <p class="infolinks">[<a href="javascript:toggleInfo('phillips1998language','bibtex')">BibTeX</a>]</p></td>
+	<td>1998</td>
+	<td>Genetics<br/>Vol. 149(3), pp. 1167&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_phillips1998language" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{phillips1998language,
+  author = {Patrick C. Phillips},
+  title = {The Language of Gene Interaction},
+  journal = {Genetics},
+  publisher = {Genetics Soc America},
+  year = {1998},
+  volume = {149},
+  number = {3},
+  pages = {1167}
+}
+</pre></td>
+</tr>
+<tr id="poli2008IntroGP" class="entry">
+	<td>Poli, R., Langdon, W. &amp; McPhee, N.</td>
+	<td>A field guide to genetic programming <p class="infolinks">[<a href="javascript:toggleInfo('poli2008IntroGP','bibtex')">BibTeX</a>]</p></td>
+	<td>2008</td>
+	<td>&nbsp;</td>
+	<td>book</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_poli2008IntroGP" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@book{poli2008IntroGP,
+  author = {Poli, R. and Langdon, W.B. and McPhee, N.F.},
+  title = {A field guide to genetic programming},
+  publisher = {Lulu Enterprises Uk Ltd},
+  year = {2008}
+}
+</pre></td>
+</tr>
+<tr id="p507-popovici" class="entry">
+	<td>Popovici, E. &amp; De Jong, K.</td>
+	<td>Understanding cooperative co-evolutionary dynamics via simple fitness landscapes <p class="infolinks">[<a href="javascript:toggleInfo('p507-popovici','bibtex')">BibTeX</a>]</p></td>
+	<td>2005</td>
+	<td>GECCO '05: Proceedings of the 2005 conference on Genetic and evolutionary computation, pp. 507-514&nbsp;</td>
+	<td>inproceedings</td>
+	<td><a href="http://doi.acm.org/10.1145/1068009.1068094">DOI</a> &nbsp;</td>
+</tr>
+<tr id="bib_p507-popovici" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{p507-popovici,
+  author = {Elena Popovici and Kenneth De Jong},
+  title = {Understanding cooperative co-evolutionary dynamics via simple fitness landscapes},
+  booktitle = {GECCO '05: Proceedings of the 2005 conference on Genetic and evolutionary computation},
+  publisher = {ACM},
+  year = {2005},
+  pages = {507--514},
+  doi = {http://doi.acm.org/10.1145/1068009.1068094}
+}
+</pre></td>
+</tr>
+<tr id="potter1997CCphdThesis" class="entry">
+	<td>Potter, M.A.</td>
+	<td>The Design and Analysis of a Computational Model of Cooperative Coevolution <p class="infolinks">[<a href="javascript:toggleInfo('potter1997CCphdThesis','bibtex')">BibTeX</a>]</p></td>
+	<td>1997</td>
+	<td><i>School</i>: George Mason University&nbsp;</td>
+	<td>phdthesis</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_potter1997CCphdThesis" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@phdthesis{potter1997CCphdThesis,
+  author = {Mitchell A. Potter},
+  title = {The Design and Analysis of a Computational Model of Cooperative Coevolution},
+  school = {George Mason University},
+  year = {1997}
+}
+</pre></td>
+</tr>
+<tr id="CCEA" class="entry">
+	<td>Potter, M.A. &amp; De Jong, K.A.</td>
+	<td>Cooperative Coevolution: architecture for evolving Coadapted subcomponents <p class="infolinks">[<a href="javascript:toggleInfo('CCEA','bibtex')">BibTeX</a>]</p></td>
+	<td>2000</td>
+	<td>Evolutionary Computation<br/>Vol. 8(1), pp. 1-29&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_CCEA" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{CCEA,
+  author = {Mitchell A. Potter and Kenneth Alan De Jong},
+  title = {Cooperative Coevolution: architecture for evolving Coadapted subcomponents},
+  journal = {Evolutionary Computation},
+  year = {2000},
+  volume = {8},
+  number = {1},
+  pages = {1--29}
+}
+</pre></td>
+</tr>
+<tr id="CCppsn" class="entry">
+	<td>Potter, M.A. &amp; De Jong, K.A.</td>
+	<td>A Cooperative Coevolutionary Approach to Function Optimization <p class="infolinks">[<a href="javascript:toggleInfo('CCppsn','bibtex')">BibTeX</a>]</p></td>
+	<td>1994</td>
+	<td><br/>Vol. 23rd Conf. on Parallel Problem Solving from Nature, pp. 249-257&nbsp;</td>
+	<td>inproceedings</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_CCppsn" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{CCppsn,
+  author = {Mitchell A. Potter and Kenneth Alan De Jong},
+  title = {A Cooperative Coevolutionary Approach to Function Optimization},
+  booktitle = {3rd Conf. on Parallel Problem Solving from Nature},
+  year = {1994},
+  volume = {2},
+  pages = {249--257}
+}
+</pre></td>
+</tr>
+<tr id="DE2005APAGO" class="entry">
+	<td>Price, K., Storn, R. &amp; Lampinen, J.A.</td>
+	<td>Differential Evolution: A Practical Approach to Global Optimization <p class="infolinks">[<a href="javascript:toggleInfo('DE2005APAGO','bibtex')">BibTeX</a>]</p></td>
+	<td>2005</td>
+	<td>&nbsp;</td>
+	<td>book</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_DE2005APAGO" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@book{DE2005APAGO,
+  author = {Kenneth Price and Rainer Storn and Jouni A. Lampinen},
+  title = {Differential Evolution: A Practical Approach to Global Optimization},
+  publisher = {Springer-Verlag},
+  year = {2005}
+}
+</pre></td>
+</tr>
+<tr id="cecSaDE" class="entry">
+	<td>Qin, A. &amp; Suganthan, P.</td>
+	<td>Self-adaptive differential evolution algorithm for numerical optimization <p class="infolinks">[<a href="javascript:toggleInfo('cecSaDE','bibtex')">BibTeX</a>]</p></td>
+	<td>2005</td>
+	<td>The 2005 IEEE Congress on Evolutionary Computation, 2005, pp. 1785-1791&nbsp;</td>
+	<td>conference</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_cecSaDE" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@conference{cecSaDE,
+  author = {Qin, AK and Suganthan, PN},
+  title = {Self-adaptive differential evolution algorithm for numerical optimization},
+  booktitle = {The 2005 IEEE Congress on Evolutionary Computation, 2005},
+  year = {2005},
+  pages = {1785--1791}
+}
+</pre></td>
+</tr>
+<tr id="RayYao2009cec" class="entry">
+	<td>Ray, T. &amp; Yao, X.</td>
+	<td>A Cooperative Coevolutionary Algorithm with Correlation Based Adaptive Variable Partitioning <p class="infolinks">[<a href="javascript:toggleInfo('RayYao2009cec','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('RayYao2009cec','bibtex')">BibTeX</a>]</p></td>
+	<td>2009</td>
+	<td>IEEE Congress on Evolutionary Computation, 2009. CEC '09, pp. 983 -989&nbsp;</td>
+	<td>inproceedings</td>
+	<td><a href="http://dx.doi.org/10.1109/CEC.2009.4983052">DOI</a> &nbsp;</td>
+</tr>
+<tr id="abs_RayYao2009cec" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: A cooperative coevolutionary algorithm (CCEA) is an extension to an evolutionary algorithm (EA); it employs a divide and conquer strategy to solve an optimization problem. In its basic form, a CCEA splits the variables of an optimization problem into multiple smaller subsets and evolves them independently in different subpopulations. The dynamics of a CCEA is far more complex than an EA and its performance can vary from good to bad depending on the separability of the optimization problem. This paper provides some insights into why CCEA in its basic form is not suitable for nonseparable problems and introduces a cooperative coevolutionary algorithm with correlation based adaptive variable partitioning (CCEA-AVP) to deal with such problems. The performance of CCEA-AVP is compared with CCEA and EA to highlight its benefits. CCEA-AVP offers the possibility to deal with problems where separability among variables might vary in different regions of the search space.</td>
+</tr>
+<tr id="bib_RayYao2009cec" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{RayYao2009cec,
+  author = {Tapabrata Ray and Xin Yao},
+  title = {A Cooperative Coevolutionary Algorithm with Correlation Based Adaptive Variable Partitioning},
+  journal = {IEEE Congress on Evolutionary Computation, 2009. CEC '09},
+  year = {2009},
+  pages = {983 -989},
+  doi = {http://dx.doi.org/10.1109/CEC.2009.4983052}
+}
+</pre></td>
+</tr>
+<tr id="runarsson2000stochastic" class="entry">
+	<td>Runarsson, T. &amp; Yao, X.</td>
+	<td>Stochastic ranking for constrained evolutionary optimization <p class="infolinks">[<a href="javascript:toggleInfo('runarsson2000stochastic','bibtex')">BibTeX</a>]</p></td>
+	<td>2000</td>
+	<td>IEEE Transactions on Evolutionary Computation<br/>Vol. 4(3), pp. 284-294&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_runarsson2000stochastic" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{runarsson2000stochastic,
+  author = {Runarsson, T.P. and Yao, X.},
+  title = {Stochastic ranking for constrained evolutionary optimization},
+  journal = {IEEE Transactions on Evolutionary Computation},
+  year = {2000},
+  volume = {4},
+  number = {3},
+  pages = {284--294}
+}
+</pre></td>
+</tr>
+<tr id="Salomon95reevaluatinggenetic" class="entry">
+	<td>Salomon, R.</td>
+	<td>Reevaluating Genetic Algorithm Performance under Coordinate Rotation of Benchmark Functions - A survey of some theoretical and practical aspects of genetic algorithms <p class="infolinks">[<a href="javascript:toggleInfo('Salomon95reevaluatinggenetic','bibtex')">BibTeX</a>]</p></td>
+	<td>1995</td>
+	<td>BioSystems<br/>Vol. 39, pp. 263-278&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_Salomon95reevaluatinggenetic" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{Salomon95reevaluatinggenetic,
+  author = {Ralf Salomon},
+  title = {Reevaluating Genetic Algorithm Performance under Coordinate Rotation of Benchmark Functions - A survey of some theoretical and practical aspects of genetic algorithms},
+  journal = {BioSystems},
+  year = {1995},
+  volume = {39},
+  pages = {263--278}
+}
+</pre></td>
+</tr>
+<tr id="XinYaoEA" class="entry">
+	<td>Sarker, R., Mohammadian, M. &amp; Yao, X.</td>
+	<td>Evolutionary Optimization <p class="infolinks">[<a href="javascript:toggleInfo('XinYaoEA','bibtex')">BibTeX</a>]</p></td>
+	<td>2002</td>
+	<td>&nbsp;</td>
+	<td>book</td>
+	<td><a href="http://scholar.google.com/scholar?hl=en&q=Evolutionary+Optimization+R.+Sarker+and+M.+Mohammadian+and+X.+Yao&btnG=Search&as_sdt=100000000000&as_ylo=&as_vis=0">URL</a>&nbsp;</td>
+</tr>
+<tr id="bib_XinYaoEA" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@book{XinYaoEA,
+  author = {R. Sarker and M. Mohammadian and X. Yao},
+  title = {Evolutionary Optimization},
+  publisher = {Kluwer Academic Publishers Norwell},
+  year = {2002},
+  url = {http://scholar.google.com/scholar?hl=en&amp;q=Evolutionary+Optimization+R.+Sarker+and+M.+Mohammadian+and+X.+Yao&amp;btnG=Search&amp;as_sdt=100000000000&amp;as_ylo=&amp;as_vis=0}
+}
+</pre></td>
+</tr>
+<tr id="schwefel1993evolution" class="entry">
+	<td>Schwefel, H.</td>
+	<td>Evolution and Optimum Seeking: The Sixth Generation <p class="infolinks">[<a href="javascript:toggleInfo('schwefel1993evolution','bibtex')">BibTeX</a>]</p></td>
+	<td>1993</td>
+	<td>&nbsp;</td>
+	<td>book</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_schwefel1993evolution" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@book{schwefel1993evolution,
+  author = {Schwefel, H.P.P.},
+  title = {Evolution and Optimum Seeking: The Sixth Generation},
+  publisher = {John Wiley &amp; Sons, Inc. New York, NY, USA},
+  year = {1993}
+}
+</pre></td>
+</tr>
+<tr id="segal1994SepFunc" class="entry">
+	<td>Segal, U.</td>
+	<td>A sufficient condition for additively separable functions <p class="infolinks">[<a href="javascript:toggleInfo('segal1994SepFunc','bibtex')">BibTeX</a>]</p></td>
+	<td>1994</td>
+	<td>Journal of Mathematical Economics<br/>Vol. 23(3), pp. 295-303&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_segal1994SepFunc" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{segal1994SepFunc,
+  author = {Uzi Segal},
+  title = {A sufficient condition for additively separable functions},
+  journal = {Journal of Mathematical Economics},
+  publisher = {Elsevier},
+  year = {1994},
+  volume = {23},
+  number = {3},
+  pages = {295--303}
+}
+</pre></td>
+</tr>
+<tr id="shi2005DECC-O" class="entry">
+	<td>Shi, Y., Teng, H. &amp; Li, Z.</td>
+	<td>Cooperative co-evolutionary differential evolution for function optimization <p class="infolinks">[<a href="javascript:toggleInfo('shi2005DECC-O','bibtex')">BibTeX</a>]</p></td>
+	<td>2005</td>
+	<td>Advances in Natural Computation, pp. 1080-1088&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_shi2005DECC-O" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{shi2005DECC-O,
+  author = {Shi, Y. and Teng, H. and Li, Z.},
+  title = {Cooperative co-evolutionary differential evolution for function optimization},
+  journal = {Advances in Natural Computation},
+  publisher = {Springer},
+  year = {2005},
+  pages = {1080--1088}
+}
+</pre></td>
+</tr>
+<tr id="SC1988NSFTBS" class="entry">
+	<td>Siegel, S. &amp; Castellan Jr.John, N.</td>
+	<td>Nonparametric Statistics for The Behavioral Sciences <p class="infolinks">[<a href="javascript:toggleInfo('SC1988NSFTBS','bibtex')">BibTeX</a>]</p></td>
+	<td>1988</td>
+	<td>&nbsp;</td>
+	<td>book</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_SC1988NSFTBS" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@book{SC1988NSFTBS,
+  author = {Siegel, S and Castellan Jr.John, N.},
+  title = {Nonparametric Statistics for The Behavioral Sciences},
+  publisher = {McGraw-Hill},
+  year = {1988}
+}
+</pre></td>
+</tr>
+<tr id="skellett2005NKruggedLS" class="entry">
+	<td>Skellett, B., Cairns, B., Geard, N., Tonkes, B. &amp; Wiles, J.</td>
+	<td>Maximally rugged NK landscapes contain the highest peaks <p class="infolinks">[<a href="javascript:toggleInfo('skellett2005NKruggedLS','bibtex')">BibTeX</a>]</p></td>
+	<td>2005</td>
+	<td>Proceedings of the 2005 conference on Genetic and evolutionary computation, pp. 584&nbsp;</td>
+	<td>conference</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_skellett2005NKruggedLS" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@conference{skellett2005NKruggedLS,
+  author = {Skellett, B. and Cairns, B. and Geard, N. and Tonkes, B. and Wiles, J.},
+  title = {Maximally rugged NK landscapes contain the highest peaks},
+  booktitle = {Proceedings of the 2005 conference on Genetic and evolutionary computation},
+  year = {2005},
+  pages = {584}
+}
+</pre></td>
+</tr>
+<tr id="Spears91onthe" class="entry">
+	<td>Spears, V.M. &amp; Jong, K.A.D.</td>
+	<td>On the virtues of parameterized uniform crossover <p class="infolinks">[<a href="javascript:toggleInfo('Spears91onthe','bibtex')">BibTeX</a>]</p></td>
+	<td>1991</td>
+	<td>In Proceedings of the Fourth International Conference on Genetic Algorithms, pp. 230-236&nbsp;</td>
+	<td>inproceedings</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_Spears91onthe" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{Spears91onthe,
+  author = {Villiam M. Spears and Kenneth A. De Jong},
+  title = {On the virtues of parameterized uniform crossover},
+  booktitle = {In Proceedings of the Fourth International Conference on Genetic Algorithms},
+  year = {1991},
+  pages = {230--236}
+}
+</pre></td>
+</tr>
+<tr id="spears1989NNandGA-NP" class="entry">
+	<td>Spears, W.M.</td>
+	<td>Using neural networks and genetic algorithms as heuristics for NP-complete problems <p class="infolinks">[<a href="javascript:toggleInfo('spears1989NNandGA-NP','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('spears1989NNandGA-NP','bibtex')">BibTeX</a>]</p></td>
+	<td>1989</td>
+	<td><i>School</i>: Citeseer&nbsp;</td>
+	<td>phdthesis</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="abs_spears1989NNandGA-NP" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: Paradigms for using neural networks (NNs) and genetic algorithms (GAs) to<br>heuristically solve boolean satisfiability (SAT) problems are presented. Results<br>are presented for two-peak and false-peak SAT problems. Since SAT is NP-<br>Complete, any other NP-Complete problem can be transformed into an equivalent<br>SAT problem in polynomial time, and solved via either paradigm. This technique<br>is illustrated for hamiltonian circuit (HC) problems.</td>
+</tr>
+<tr id="bib_spears1989NNandGA-NP" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@phdthesis{spears1989NNandGA-NP,
+  author = {William McDuff Spears},
+  title = {Using neural networks and genetic algorithms as heuristics for NP-complete problems},
+  school = {Citeseer},
+  year = {1989}
+}
+</pre></td>
+</tr>
+<tr id="storn1997DE" class="entry">
+	<td>Storn, R. &amp; Price, K.</td>
+	<td>Differential evolution--a simple and efficient heuristic for global optimization over continuous spaces <p class="infolinks">[<a href="javascript:toggleInfo('storn1997DE','bibtex')">BibTeX</a>]</p></td>
+	<td>1997</td>
+	<td>Journal of global optimization<br/>Vol. 11(4), pp. 341-359&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_storn1997DE" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{storn1997DE,
+  author = {Storn, R. and Price, K.},
+  title = {Differential evolution--a simple and efficient heuristic for global optimization over continuous spaces},
+  journal = {Journal of global optimization},
+  publisher = {Springer},
+  year = {1997},
+  volume = {11},
+  number = {4},
+  pages = {341--359}
+}
+</pre></td>
+</tr>
+<tr id="streeter2004UpperBound" class="entry">
+	<td>Streeter, M.</td>
+	<td>Upper bounds on the time and space complexity of optimizing additively separable functions <p class="infolinks">[<a href="javascript:toggleInfo('streeter2004UpperBound','bibtex')">BibTeX</a>]</p></td>
+	<td>2004</td>
+	<td>Genetic and Evolutionary Computation--GECCO 2004, pp. 186-197&nbsp;</td>
+	<td>conference</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_streeter2004UpperBound" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@conference{streeter2004UpperBound,
+  author = {Streeter, M.J.},
+  title = {Upper bounds on the time and space complexity of optimizing additively separable functions},
+  booktitle = {Genetic and Evolutionary Computation--GECCO 2004},
+  year = {2004},
+  pages = {186--197}
+}
+</pre></td>
+</tr>
+<tr id="CEC2005benckmark" class="entry">
+	<td>Suganthan, P., Hansen, N., Liang, J., Deb, K., Chen, Y., Auger, A. &amp; Tiwari, S.</td>
+	<td>Problem definitions and evaluation criteria for the CEC 2005 special session on real-parameter optimization <p class="infolinks">[<a href="javascript:toggleInfo('CEC2005benckmark','bibtex')">BibTeX</a>]</p></td>
+	<td>2005</td>
+	<td><br/>Vol. 2005005&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_CEC2005benckmark" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{CEC2005benckmark,
+  author = {Suganthan, P.N. and Hansen, N. and Liang, J.J. and Deb, K. and Chen, YP and Auger, A. and Tiwari, S.},
+  title = {Problem definitions and evaluation criteria for the CEC 2005 special session on real-parameter optimization},
+  publisher = {Citeseer},
+  year = {2005},
+  volume = {2005005}
+}
+</pre></td>
+</tr>
+<tr id="TangCEC2008SSlsgo" class="entry">
+	<td>Tang, K.</td>
+	<td>Summary of Results on CEC’08 Competition on Large Scale Global Optimization <p class="infolinks">[<a href="javascript:toggleInfo('TangCEC2008SSlsgo','bibtex')">BibTeX</a>]</p></td>
+	<td>2008</td>
+	<td>&nbsp;</td>
+	<td>misc</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_TangCEC2008SSlsgo" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@misc{TangCEC2008SSlsgo,
+  author = {Ke Tang},
+  title = {Summary of Results on CEC’08 Competition on Large Scale Global Optimization},
+  year = {2008}
+}
+</pre></td>
+</tr>
+<tr id="cec2010lsgo" class="entry">
+	<td>Tang, K., Li, X., Suganthan, P.N., Yang, Z. &amp; Weise, T.</td>
+	<td>Benchmark Functions for the CEC'2010 Special Session and Competition on Large Scale Global Optimization <p class="infolinks">[<a href="javascript:toggleInfo('cec2010lsgo','bibtex')">BibTeX</a>]</p></td>
+	<td>2009</td>
+	<td>&nbsp;</td>
+	<td>techreport</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_cec2010lsgo" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@techreport{cec2010lsgo,
+  author = {Ke Tang and Xiaodong Li and Ponnuthurai Nagaratnam Suganthan and Zhenyu Yang and Thomas Weise},
+  title = {Benchmark Functions for the CEC'2010 Special Session and Competition on Large Scale Global Optimization},
+  year = {2009},
+  note = {http://nical.ustc.edu.cn/cec10ss.php}
+}
+</pre></td>
+</tr>
+<tr id="TLSYW2009BFFTCSSACOLSGO" class="entry">
+	<td>Tang, K., Weise, T., Yang, Z., Li, X. &amp; Suganthan, P.N.</td>
+	<td>Results of the Large Scale Global Optimization Challenge at 2010 IEEE World Congress on Computational Intelligence <p class="infolinks">[<a href="javascript:toggleInfo('TLSYW2009BFFTCSSACOLSGO','bibtex')">BibTeX</a>]</p></td>
+	<td>2010</td>
+	<td>&nbsp;</td>
+	<td>misc</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_TLSYW2009BFFTCSSACOLSGO" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@misc{TLSYW2009BFFTCSSACOLSGO,
+  author = {Ke Tang and Thomas Weise and Zhenyu Yang and Xiaodong Li and Ponnuthurai Nagaratnam Suganthan},
+  title = {Results of the Large Scale Global Optimization Challenge at 2010 IEEE World Congress on Computational Intelligence},
+  year = {2010}
+}
+</pre></td>
+</tr>
+<tr id="tang2007CEC2008LSGO" class="entry">
+	<td>Tang, K., Yao, X., Suganthan, P., MacNish, C., Chen, Y., Chen, C. &amp; Yang, Z.</td>
+	<td>Benchmark functions for the CEC’2008 special session and competition on large scale global optimization <p class="infolinks">[<a href="javascript:toggleInfo('tang2007CEC2008LSGO','bibtex')">BibTeX</a>]</p></td>
+	<td>2007</td>
+	<td>Nature Inspired Computation and Applications Laboratory, USTC, China, Tech. Rep&nbsp;</td>
+	<td>techreport</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_tang2007CEC2008LSGO" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@techreport{tang2007CEC2008LSGO,
+  author = {Ke Tang and Xin Yao and Suganthan, PN and MacNish, C. and Chen, YP and Chen, CM and Yang, Z.},
+  title = {Benchmark functions for the CEC’2008 special session and competition on large scale global optimization},
+  journal = {Nature Inspired Computation and Applications Laboratory, USTC, China, Tech. Rep},
+  year = {2007}
+}
+</pre></td>
+</tr>
+<tr id="tendresse2002partialRestart" class="entry">
+	<td>Tendresse, I., Gottlieb, J. &amp; Kao, O.</td>
+	<td>The effects of partial restarts in evolutionary search <p class="infolinks">[<a href="javascript:toggleInfo('tendresse2002partialRestart','bibtex')">BibTeX</a>]</p></td>
+	<td>2002</td>
+	<td>Artificial Evolution, pp. 117-127&nbsp;</td>
+	<td>conference</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_tendresse2002partialRestart" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@conference{tendresse2002partialRestart,
+  author = {Tendresse, I. and Gottlieb, J. and Kao, O.},
+  title = {The effects of partial restarts in evolutionary search},
+  booktitle = {Artificial Evolution},
+  year = {2002},
+  pages = {117--127}
+}
+</pre></td>
+</tr>
+<tr id="tseng2008MTS" class="entry">
+	<td>Tseng, L.-Y. &amp; Chen, C.</td>
+	<td>Multiple trajectory search for large scale global optimization <p class="infolinks">[<a href="javascript:toggleInfo('tseng2008MTS','review')">Review</a>] [<a href="javascript:toggleInfo('tseng2008MTS','bibtex')">BibTeX</a>]</p></td>
+	<td>2008</td>
+	<td>IEEE Congress on Evolutionary Computation, 2008. CEC 2008.(IEEE World Congress on Computational Intelligence), pp. 3052-3059&nbsp;</td>
+	<td>conference</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="rev_tseng2008MTS" class="review noshow">
+	<td colspan="6"><b>Review</b>: 1. Include three kinds of local search, determine which one to apply after testing all of them for a few fitness.<br> 1. Local Search 1 search along one dimension from the first dimension to the last dimension.<br> 2. Local Search 2 is the similar to Local Search 2 except the it searchs along one-fourth of the all dimensions.<br> 3. In local search 3, the evaluation of the objective function value is done after searching all the dimensions.<p>2. Orthogonal Array (OA)<br>Reduce the complexity of testing different level of configuration for several factors, which means we don't need to test all possible combination.<p>3. Not clear about the OA, especially for SOA.</td>
+</tr>
+<tr id="bib_tseng2008MTS" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@conference{tseng2008MTS,
+  author = {Lin-Yu Tseng and Chun Chen},
+  title = {Multiple trajectory search for large scale global optimization},
+  booktitle = {IEEE Congress on Evolutionary Computation, 2008. CEC 2008.(IEEE World Congress on Computational Intelligence)},
+  year = {2008},
+  pages = {3052--3059}
+}
+</pre></td>
+</tr>
+<tr id="Wang2009NIAO" class="entry">
+	<td>Wang, Y. &amp; Li, B.</td>
+	<td>A Self-adaptive Mixed Distribution Based Uni-variate Estimation of Distribution Algorithm for Large Scale Global Optimization <p class="infolinks">[<a href="javascript:toggleInfo('Wang2009NIAO','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('Wang2009NIAO','bibtex')">BibTeX</a>]</p></td>
+	<td>2009</td>
+	<td><br/>Vol. 193Nature-Inspired Algorithms for Optimisation, pp. 171-198&nbsp;</td>
+	<td>incollection</td>
+	<td><a href="http://dx.doi.org/10.1007/978-3-642-00267-0_6">URL</a>&nbsp;</td>
+</tr>
+<tr id="abs_Wang2009NIAO" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: Large scale global optimization (LSGO), which is highly needed for many scientific and engineering applications, is a very important and very difficult task in optimization domain. Various algorithms have been proposed to tackle this challenging problem, but the use of estimation of distribution algorithms (EDAs) to it is rare. This chapter aims at investigating the behavior and performances of uni-variate EDAs mixed with different kernel probability densities via fitness landscape analysis. Based on the analysis, a self-adaptive uni-variate EDA with mixed kernels (MUEDA) is proposed. To assess the effectiveness and efficiency of MUEDA, function optimization tasks with dimension scaling from 30 to 1500 are adopted. Compared to the recently published LSGO algorithms, MUEDA shows excellent convergence speed, final solution quality and dimensional scalability.</td>
+</tr>
+<tr id="bib_Wang2009NIAO" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@incollection{Wang2009NIAO,
+  author = {Yu Wang and Bin Li},
+  title = {A Self-adaptive Mixed Distribution Based Uni-variate Estimation of Distribution Algorithm for Large Scale Global Optimization},
+  booktitle = {Nature-Inspired Algorithms for Optimisation},
+  publisher = {Springer Berlin / Heidelberg},
+  year = {2009},
+  volume = {193},
+  pages = {171-198},
+  note = {10.1007/978-3-642-00267-0_6},
+  url = {http://dx.doi.org/10.1007/978-3-642-00267-0_6}
+}
+</pre></td>
+</tr>
+<tr id="Wang2008cecss" class="entry">
+	<td>Wang, Y. &amp; Li, B.</td>
+	<td>A restart univariate estimation of distribution algorithm: sampling under mixed Gaussian and L&eacute;vy probability distribution <p class="infolinks">[<a href="javascript:toggleInfo('Wang2008cecss','review')">Review</a>] [<a href="javascript:toggleInfo('Wang2008cecss','bibtex')">BibTeX</a>]</p></td>
+	<td>2008</td>
+	<td>Evolutionary Computation, 2008. CEC 2008. (IEEE World Congress on Computational Intelligence). IEEE Congress on, pp. 3917 -3924&nbsp;</td>
+	<td>inproceedings</td>
+	<td><a href="http://dx.doi.org/10.1109/CEC.2008.4631330">DOI</a> &nbsp;</td>
+</tr>
+<tr id="rev_Wang2008cecss" class="review noshow">
+	<td colspan="6"><b>Review</b>: Key Points:<br>1. Mixing L&egrave;vy distribution with Gaussian distribution.<br>2. Standard Deviation Control Strategy(STDC), Set up a common threshold to maintain the diversity of population.<br>3. Restart strategy is applied here as well.<p>What I have learned:<br>1.The Gaussian process is a typical example of stable process with finite second moment which would lead to a characteristic scale and the Gaussian behavior for the probability density through the central limit theorem.</td>
+</tr>
+<tr id="bib_Wang2008cecss" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{Wang2008cecss,
+  author = {Yu Wang and Bin Li},
+  title = {A restart univariate estimation of distribution algorithm: sampling under mixed Gaussian and L&eacute;vy probability distribution},
+  journal = {Evolutionary Computation, 2008. CEC 2008. (IEEE World Congress on Computational Intelligence). IEEE Congress on},
+  year = {2008},
+  pages = {3917 -3924},
+  doi = {http://dx.doi.org/10.1109/CEC.2008.4631330}
+}
+</pre></td>
+</tr>
+<tr id="weicker1999cec" class="entry">
+	<td>Weicker, K. &amp; Weicker, N.</td>
+	<td>On the improvement of coevolutionary optimizers by learning variable interdependencies <p class="infolinks">[<a href="javascript:toggleInfo('weicker1999cec','bibtex')">BibTeX</a>]</p></td>
+	<td>1999</td>
+	<td>Proc. 1999 Congress on Evolutionary Computation (CEC'99). IEEE Press, pp. 1627-1632&nbsp;</td>
+	<td>conference</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_weicker1999cec" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@conference{weicker1999cec,
+  author = {Karsten Weicker and Nicole Weicker},
+  title = {On the improvement of coevolutionary optimizers by learning variable interdependencies},
+  booktitle = {Proc. 1999 Congress on Evolutionary Computation (CEC'99). IEEE Press},
+  year = {1999},
+  pages = {1627--1632}
+}
+</pre></td>
+</tr>
+<tr id="whitley1989genitor" class="entry">
+	<td>Whitley, D.</td>
+	<td>The GENITOR algorithm and selection pressure: why rank-based allocation of reproductive trials is best <p class="infolinks">[<a href="javascript:toggleInfo('whitley1989genitor','bibtex')">BibTeX</a>]</p></td>
+	<td>1989</td>
+	<td>Proceedings of the third international conference on Genetic algorithms, pp. 116-121&nbsp;</td>
+	<td>inproceedings</td>
+	<td><a href="http://portal.acm.org/citation.cfm?id=93126.93169">URL</a>&nbsp;</td>
+</tr>
+<tr id="bib_whitley1989genitor" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{whitley1989genitor,
+  author = {Darrell Whitley},
+  title = {The GENITOR algorithm and selection pressure: why rank-based allocation of reproductive trials is best},
+  booktitle = {Proceedings of the third international conference on Genetic algorithms},
+  publisher = {Morgan Kaufmann Publishers Inc.},
+  year = {1989},
+  pages = {116--121},
+  url = {http://portal.acm.org/citation.cfm?id=93126.93169}
+}
+</pre></td>
+</tr>
+<tr id="Whitley96evaluatingevolutionary" class="entry">
+	<td>Whitley, D., Mathias, K., Rana, S. &amp; Dzubera, J.</td>
+	<td>Evaluating Evolutionary Algorithms <p class="infolinks">[<a href="javascript:toggleInfo('Whitley96evaluatingevolutionary','bibtex')">BibTeX</a>]</p></td>
+	<td>1996</td>
+	<td>Artificial Intelligence<br/>Vol. 85, pp. 245-276&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_Whitley96evaluatingevolutionary" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{Whitley96evaluatingevolutionary,
+  author = {D. Whitley and K. Mathias and S. Rana and J. Dzubera},
+  title = {Evaluating Evolutionary Algorithms},
+  journal = {Artificial Intelligence},
+  year = {1996},
+  volume = {85},
+  pages = {245--276}
+}
+</pre></td>
+</tr>
+<tr id="MLCC2008cecss" class="entry">
+	<td>Yang, Z., Tang, K. &amp; Yao, X.</td>
+	<td>Multilevel cooperative Coevolution for large scale optimization <p class="infolinks">[<a href="javascript:toggleInfo('MLCC2008cecss','bibtex')">BibTeX</a>]</p></td>
+	<td>2008</td>
+	<td>IEEE Congress on Evolutionary Computation, pp. 1663-1670&nbsp;</td>
+	<td>inproceedings</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_MLCC2008cecss" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{MLCC2008cecss,
+  author = {Zhenyu Yang and Ke Tang and Xin Yao},
+  title = {Multilevel cooperative Coevolution for large scale optimization},
+  booktitle = {IEEE Congress on Evolutionary Computation},
+  publisher = {IEEE Press},
+  year = {2008},
+  pages = {1663--1670}
+}
+</pre></td>
+</tr>
+<tr id="Yang-DECC-G" class="entry">
+	<td>Yang, Z., Tang, K. &amp; Yao, X.</td>
+	<td>Large Scale Evolutionary Optimization Using Cooperative Coevolution <p class="infolinks">[<a href="javascript:toggleInfo('Yang-DECC-G','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('Yang-DECC-G','bibtex')">BibTeX</a>]</p></td>
+	<td>2008</td>
+	<td>Information Sciences<br/>Vol. 178(15), pp. 2985-2999&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="abs_Yang-DECC-G" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: Evolutionary algorithms (EAs) have been applied with success to many numerical and<br>combinatorial optimization problems in recent years. However, they often lose their effec-<br>tiveness and advantages when applied to large and complex problems, e.g., those with high<br>dimensions. Although cooperative coevolution has been proposed as a promising frame-<br>work for tackling high-dimensional optimization problems, only limited studies were<br>reported by decomposing a high-dimensional problem into single variables (dimensions).<br>Such methods of decomposition often failed to solve nonseparable problems, for which<br>tight interactions exist among different decision variables. In this paper, we propose a<br>new cooperative coevolution framework that is capable of optimizing large scale nonsep-<br>arable problems. A random grouping scheme and adaptive weighting are introduced in<br>problem decomposition and coevolution. Instead of conventional evolutionary algorithms,<br>a novel differential evolution algorithm is adopted. Theoretical analysis is presented in this<br>paper to show why and how the new framework can be effective for optimizing large non-<br>separable problems. Extensive computational studies are also carried out to evaluate the<br>performance of newly proposed algorithm on a large number of benchmark functions with<br>up to 1000 dimensions. The results show clearly that our framework and algorithm are<br>effective as well as efficient for large scale evolutionary optimisation problems. We are<br>unaware of any other evolutionary algorithms that can optimize 1000-dimension nonsep-<br>arable problems as effectively and efficiently as we have done.</td>
+</tr>
+<tr id="bib_Yang-DECC-G" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{Yang-DECC-G,
+  author = {Zhenyu Yang and Ke Tang and Xin Yao},
+  title = {Large Scale Evolutionary Optimization Using Cooperative Coevolution},
+  journal = {Information Sciences},
+  year = {2008},
+  volume = {178},
+  number = {15},
+  pages = {2985--2999}
+}
+</pre></td>
+</tr>
+<tr id="yang2008SaNSDE" class="entry">
+	<td>Yang, Z., Tang, K. &amp; Yao, X.</td>
+	<td>Self-adaptive differential evolution with neighborhood search <p class="infolinks">[<a href="javascript:toggleInfo('yang2008SaNSDE','bibtex')">BibTeX</a>]</p></td>
+	<td>2008</td>
+	<td>IEEE Congress on Evolutionary Computation, 2008. CEC 2008.(IEEE World Congress on Computational Intelligence), pp. 1110-1116&nbsp;</td>
+	<td>conference</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_yang2008SaNSDE" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@conference{yang2008SaNSDE,
+  author = {Yang, Z. and Tang, K. and Yao, X.},
+  title = {Self-adaptive differential evolution with neighborhood search},
+  booktitle = {IEEE Congress on Evolutionary Computation, 2008. CEC 2008.(IEEE World Congress on Computational Intelligence)},
+  year = {2008},
+  pages = {1110--1116}
+}
+</pre></td>
+</tr>
+<tr id="YangKeYao2007cec" class="entry">
+	<td>Yang, Z., Tang, K. &amp; Yao, X.</td>
+	<td>Differential evolution for high-dimensional function optimization <p class="infolinks">[<a href="javascript:toggleInfo('YangKeYao2007cec','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('YangKeYao2007cec','bibtex')">BibTeX</a>]</p></td>
+	<td>2007</td>
+	<td>IEEE Congress on Evolutionary Computation, 2007. CEC 2007, pp. 3523 -3530&nbsp;</td>
+	<td>inproceedings</td>
+	<td><a href="http://dx.doi.org/10.1109/CEC.2007.4424929">DOI</a> &nbsp;</td>
+</tr>
+<tr id="abs_YangKeYao2007cec" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: Most reported studies on differential evolution (DE) are obtained using low-dimensional problems, e.g., smaller than 100, which are relatively small for many real-world problems. In this paper we propose two new efficient DE variants, named DECC-I and DECC-II, for high-dimensional optimization (up to 1000 dimensions). The two algorithms are based on a cooperative coevolution framework incorporated with several novel strategies. The new strategies are mainly focus on problem decomposition and subcomponents cooperation. Experimental results have shown that these algorithms have superior performance on a set of widely used benchmark functions.</td>
+</tr>
+<tr id="bib_YangKeYao2007cec" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{YangKeYao2007cec,
+  author = {Zhenyu Yang and Ke Tang and Xin Yao},
+  title = {Differential evolution for high-dimensional function optimization},
+  journal = {IEEE Congress on Evolutionary Computation, 2007. CEC 2007},
+  year = {2007},
+  pages = {3523 -3530},
+  doi = {http://dx.doi.org/10.1109/CEC.2007.4424929}
+}
+</pre></td>
+</tr>
+<tr id="yang2008NSDE" class="entry">
+	<td>Yang, Z., Yao, X. &amp; He, J.</td>
+	<td>Making a difference to differential evolution <p class="infolinks">[<a href="javascript:toggleInfo('yang2008NSDE','bibtex')">BibTeX</a>]</p></td>
+	<td>2008</td>
+	<td>Advances in Metaheuristics for Hard Optimization, pp. 397-414&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_yang2008NSDE" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{yang2008NSDE,
+  author = {Yang, Z. and Yao, X. and He, J.},
+  title = {Making a difference to differential evolution},
+  journal = {Advances in Metaheuristics for Hard Optimization},
+  publisher = {Springer},
+  year = {2008},
+  pages = {397--414}
+}
+</pre></td>
+</tr>
+<tr id="Yang-JACC-G" class="entry">
+	<td>Yang, Z., Zhang, J., Tang, K., Yao, X. &amp; Sanderson, A.C.</td>
+	<td>An Adaptive Coevolutionary Differential Evolution Algorithm for Large-Scale Optimization <p class="infolinks">[<a href="javascript:toggleInfo('Yang-JACC-G','bibtex')">BibTeX</a>]</p></td>
+	<td>2009</td>
+	<td>IEEE Congress on Evolutionary Computation, pp. 102-109&nbsp;</td>
+	<td>inproceedings</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_Yang-JACC-G" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{Yang-JACC-G,
+  author = {Zhenyu Yang and Jinqiao Zhang and Ke Tang and Xin Yao and Arthur C. Sanderson},
+  title = {An Adaptive Coevolutionary Differential Evolution Algorithm for Large-Scale Optimization},
+  booktitle = {IEEE Congress on Evolutionary Computation},
+  publisher = {IEEE Press},
+  year = {2009},
+  pages = {102--109}
+}
+</pre></td>
+</tr>
+<tr id="yao1996FEP" class="entry">
+	<td>Yao, X. &amp; Liu, Y.</td>
+	<td>Fast evolutionary programming <p class="infolinks">[<a href="javascript:toggleInfo('yao1996FEP','bibtex')">BibTeX</a>]</p></td>
+	<td>1996</td>
+	<td>Proceedings of the Fifth Annual Conference on Evolutionary Programming, pp. 451-460&nbsp;</td>
+	<td>conference</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_yao1996FEP" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@conference{yao1996FEP,
+  author = {Yao, X. and Liu, Y.},
+  title = {Fast evolutionary programming},
+  booktitle = {Proceedings of the Fifth Annual Conference on Evolutionary Programming},
+  year = {1996},
+  pages = {451--460}
+}
+</pre></td>
+</tr>
+<tr id="YaoTECFEP" class="entry">
+	<td>Yao, X., Liu, Y. &amp; Lin, G.</td>
+	<td>Evolutionary Programming Made Faster <p class="infolinks">[<a href="javascript:toggleInfo('YaoTECFEP','bibtex')">BibTeX</a>]</p></td>
+	<td>1999</td>
+	<td>IEEE Transactions on Evolutionary Computation<br/>Vol. 3(2), pp. 82-102&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_YaoTECFEP" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{YaoTECFEP,
+  author = {Yao, X. and Liu, Y. and Lin, G.},
+  title = {Evolutionary Programming Made Faster},
+  journal = {IEEE Transactions on Evolutionary Computation},
+  year = {1999},
+  volume = {3},
+  number = {2},
+  pages = {82--102}
+}
+</pre></td>
+</tr>
+<tr id="yong2001CCMaS" class="entry">
+	<td>Yong, C. &amp; Miikkulainen, R.</td>
+	<td>Cooperative coevolution of multi-agent systems <p class="infolinks">[<a href="javascript:toggleInfo('yong2001CCMaS','bibtex')">BibTeX</a>]</p></td>
+	<td>2001</td>
+	<td>University of Texas at Austin, Austin, TX&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_yong2001CCMaS" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{yong2001CCMaS,
+  author = {Yong, C.H. and Miikkulainen, R.},
+  title = {Cooperative coevolution of multi-agent systems},
+  journal = {University of Texas at Austin, Austin, TX},
+  publisher = {Citeseer},
+  year = {2001}
+}
+</pre></td>
+</tr>
+<tr id="zaharie2002ctrolParam" class="entry">
+	<td>Zaharie, D.</td>
+	<td>Critical values for the control parameters of differential evolution algorithms <p class="infolinks">[<a href="javascript:toggleInfo('zaharie2002ctrolParam','bibtex')">BibTeX</a>]</p></td>
+	<td>2002</td>
+	<td>Proceedings of MENDEL, pp. 62-67&nbsp;</td>
+	<td>conference</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_zaharie2002ctrolParam" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@conference{zaharie2002ctrolParam,
+  author = {Daniela Zaharie},
+  title = {Critical values for the control parameters of differential evolution algorithms},
+  booktitle = {Proceedings of MENDEL},
+  year = {2002},
+  pages = {62--67}
+}
+</pre></td>
+</tr>
+<tr id="Zamuda2008cecss" class="entry">
+	<td>Zamuda, A., Brest, J., Boxkovi&#263;, B. &amp; &#381;umer, V.</td>
+	<td>Large Scale Global Optimization using Differential Evolution with self-adaptation and cooperative co-evolution <p class="infolinks">[<a href="javascript:toggleInfo('Zamuda2008cecss','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('Zamuda2008cecss','review')">Review</a>] [<a href="javascript:toggleInfo('Zamuda2008cecss','bibtex')">BibTeX</a>]</p></td>
+	<td>2008</td>
+	<td>Evolutionary Computation, 2008. CEC 2008. (IEEE World Congress on Computational Intelligence). IEEE Congress on, pp. 3718 -3725&nbsp;</td>
+	<td>inproceedings</td>
+	<td><a href="http://dx.doi.org/10.1109/CEC.2008.4631301">DOI</a> &nbsp;</td>
+</tr>
+<tr id="abs_Zamuda2008cecss" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: In this paper, an optimization algorithm is formulated and its performance assessment for large scale global optimization is presented. The proposed algorithm is named DEwSAcc and is based on Differential Evolution (DE) algorithm, which is a floating-point encoding evolutionary algorithm for global optimization over continuous spaces. The original DE is extended by log-normal self-adaptation of its control parameters and combined with cooperative co-evolution as a dimension decomposition mechanism. Experimental results are given for seven high-dimensional test functions proposed for the Special Session on Large Scale Global Optimization at 2008 IEEE World Congress on Computational Intelligence.</td>
+</tr>
+<tr id="rev_Zamuda2008cecss" class="review noshow">
+	<td colspan="6"><b>Review</b>: 1.Apply a self-adaptive strategy to control parameter $F$, $CR$<p>A low-quality paper...</td>
+</tr>
+<tr id="bib_Zamuda2008cecss" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{Zamuda2008cecss,
+  author = {Alex Zamuda and Janez Brest and Borko Boxkovi&#263; and Viljem &#381;umer},
+  title = {Large Scale Global Optimization using Differential Evolution with self-adaptation and cooperative co-evolution},
+  journal = {Evolutionary Computation, 2008. CEC 2008. (IEEE World Congress on Computational Intelligence). IEEE Congress on},
+  year = {2008},
+  pages = {3718 -3725},
+  doi = {http://dx.doi.org/10.1109/CEC.2008.4631301}
+}
+</pre></td>
+</tr>
+<tr id="zhang2009JADE" class="entry">
+	<td>Zhang, J. &amp; Sanderson, A.C.</td>
+	<td>JADE: adaptive differential evolution with optional external archive <p class="infolinks">[<a href="javascript:toggleInfo('zhang2009JADE','bibtex')">BibTeX</a>]</p></td>
+	<td>2009</td>
+	<td>IEEE Transactions on Evolutionary Computation<br/>Vol. 13(5), pp. 945-958&nbsp;</td>
+	<td>article</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_zhang2009JADE" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{zhang2009JADE,
+  author = {Jingqiao Zhang and Arthur C. Sanderson},
+  title = {JADE: adaptive differential evolution with optional external archive},
+  journal = {IEEE Transactions on Evolutionary Computation},
+  year = {2009},
+  volume = {13},
+  number = {5},
+  pages = {945--958}
+}
+</pre></td>
+</tr>
+<tr id="zhao2008cecss" class="entry">
+	<td>Zhao, S., Liang, J., Suganthan, P. &amp; Tasgetiren, M.</td>
+	<td>Dynamic multi-swarm particle swarm optimizer with local search for Large Scale Global Optimization <p class="infolinks">[<a href="javascript:toggleInfo('zhao2008cecss','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('zhao2008cecss','bibtex')">BibTeX</a>]</p></td>
+	<td>2008</td>
+	<td>Evolutionary Computation, 2008. CEC 2008. (IEEE World Congress on Computational Intelligence). IEEE Congress on, pp. 3845 -3852&nbsp;</td>
+	<td>inproceedings</td>
+	<td><a href="http://dx.doi.org/10.1109/CEC.2008.4631320">DOI</a> &nbsp;</td>
+</tr>
+<tr id="abs_zhao2008cecss" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: In this paper, the performance of dynamic multi-swarm particle swarm optimizer (DMS-PSO) on the set of benchmark functions provided for the CEC2008 Special Session on Large Scale optimization is reported. Different from the existing multi-swarm PSOs and local versions of PSO, the sub-swarms are dynamic and the sub-swarmspsila size is very small. The whole population is divided into a large number sub-swarms, these sub-swarms are regrouped frequently by using various regrouping schedules and information is exchanged among the particles in the whole swarm. The Quasi-Newton method is combined to improve its local searching ability.</td>
+</tr>
+<tr id="bib_zhao2008cecss" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@inproceedings{zhao2008cecss,
+  author = {Zhao, S.Z. and Liang, J.J. and Suganthan, P.N. and Tasgetiren, M.F.},
+  title = {Dynamic multi-swarm particle swarm optimizer with local search for Large Scale Global Optimization},
+  journal = {Evolutionary Computation, 2008. CEC 2008. (IEEE World Congress on Computational Intelligence). IEEE Congress on},
+  year = {2008},
+  pages = {3845 -3852},
+  doi = {http://dx.doi.org/10.1109/CEC.2008.4631320}
+}
+</pre></td>
+</tr>
+<tr id="ZhongLiuXueJiao2004TSMCB" class="entry">
+	<td>Zhong, W., Liu, J., Xue, M. &amp; Jiao, L.</td>
+	<td>A multiagent genetic algorithm for global numerical optimization <p class="infolinks">[<a href="javascript:toggleInfo('ZhongLiuXueJiao2004TSMCB','abstract')">Abstract</a>] [<a href="javascript:toggleInfo('ZhongLiuXueJiao2004TSMCB','bibtex')">BibTeX</a>]</p></td>
+	<td>2004</td>
+	<td>IEEE Transactions on Systems, Man, and Cybernetics, Part B: Cybernetics<br/>Vol. 34(2), pp.  1128 - 1141&nbsp;</td>
+	<td>article</td>
+	<td><a href="http://dx.doi.org/10.1109/TSMCB.2003.821456">DOI</a> &nbsp;</td>
+</tr>
+<tr id="abs_ZhongLiuXueJiao2004TSMCB" class="abstract noshow">
+	<td colspan="6"><b>Abstract</b>: In this paper, multiagent systems and genetic algorithms are integrated to form a new algorithm, multiagent genetic algorithm (MAGA), for solving the global numerical optimization problem. An agent in MAGA represents a candidate solution to the optimization problem in hand. All agents live in a latticelike environment, with each agent fixed on a lattice-point. In order to increase energies, they compete or cooperate with their neighbors, and they can also use knowledge. Making use of these agent-agent interactions, MAGA realizes the purpose of minimizing the objective function value. Theoretical analyzes show that MAGA converges to the global optimum. In the first part of the experiments, ten benchmark functions are used to test the performance of MAGA, and the scalability of MAGA along the problem dimension is studied with great care. The results show that MAGA achieves a good performance when the dimensions are increased from 20-10,000. Moreover, even when the dimensions are increased to as high as 10,000, MAGA still can find high quality solutions at a low computational cost. Therefore, MAGA has good scalability and is a competent algorithm for solving high dimensional optimization problems. To the best of our knowledge, no researchers have ever optimized the functions with 10,000 dimensions by means of evolution. In the second part of the experiments, MAGA is applied to a practical case, the approximation of linear systems, with a satisfactory result.</td>
+</tr>
+<tr id="bib_ZhongLiuXueJiao2004TSMCB" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@article{ZhongLiuXueJiao2004TSMCB,
+  author = {Weicai Zhong and Jing Liu and Mingzhi Xue and Licheng Jiao},
+  title = {A multiagent genetic algorithm for global numerical optimization},
+  journal = {IEEE Transactions on Systems, Man, and Cybernetics, Part B: Cybernetics},
+  year = {2004},
+  volume = {34},
+  number = {2},
+  pages = { 1128 - 1141},
+  doi = {http://dx.doi.org/10.1109/TSMCB.2003.821456}
+}
+</pre></td>
+</tr>
+<tr id="zhou2009CUDA-PSO" class="entry">
+	<td>Zhou, Y. &amp; Tan, Y.</td>
+	<td>GPU-based parallel particle swarm optimization <p class="infolinks">[<a href="javascript:toggleInfo('zhou2009CUDA-PSO','bibtex')">BibTeX</a>]</p></td>
+	<td>2009</td>
+	<td>IEEE Congress on Evolutionary Computation, 2009. CEC'09, pp. 1493-1500&nbsp;</td>
+	<td>conference</td>
+	<td>&nbsp;</td>
+</tr>
+<tr id="bib_zhou2009CUDA-PSO" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@conference{zhou2009CUDA-PSO,
+  author = {You Zhou and Ying Tan},
+  title = {GPU-based parallel particle swarm optimization},
+  booktitle = {IEEE Congress on Evolutionary Computation, 2009. CEC'09},
+  year = {2009},
+  pages = {1493--1500}
+}
+</pre></td>
+</tr>
+<tr id="AdvanDE" class="entry">
+	<td></td>
+	<td>Advances in Differential Evolution <p class="infolinks">[<a href="javascript:toggleInfo('AdvanDE','bibtex')">BibTeX</a>]</p></td>
+	<td>2008</td>
+	<td>&nbsp;</td>
+	<td>book</td>
+	<td><a href="http://portal.acm.org/citation.cfm?id=SERIES11878.1479611">URL</a>&nbsp;</td>
+</tr>
+<tr id="bib_AdvanDE" class="bibtex noshow">
+<td colspan="6"><b>BibTeX</b>:
+<pre>
+@book{AdvanDE,,
+  title = {Advances in Differential Evolution},
+  publisher = {Springer},
+  year = {2008},
+  url = {http://portal.acm.org/citation.cfm?id=SERIES11878.1479611}
+}
+</pre></td>
+</tr>
+</tbody>
+</table>
+
+<p>
+ <small>Created by <a href="http://jabref.sourceforge.net">JabRef</a> on 19/09/2010.</small>
+</p>
+
+</body>
+</html>
+
+<!-- File generated by JabRef ; Export Filter written by Mark Schenk -->

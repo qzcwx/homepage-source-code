@@ -8,104 +8,110 @@
 
 <url>
   <loc>http://www.cs.colostate.edu/~chenwx/index.html</loc>
-  <lastmod>2012-04-30T03:30:06+00:00</lastmod>
-  <changefreq>always</changefreq>
+  <lastmod>2012-07-14T05:04:51+00:00</lastmod>
+  <changefreq>daily</changefreq>
   <priority>1.00</priority>
 </url>
 <url>
   <loc>http://www.cs.colostate.edu/~chenwx/research.html</loc>
-  <lastmod>2012-04-28T20:04:37+00:00</lastmod>
-  <changefreq>always</changefreq>
+  <lastmod>2012-07-14T05:05:07+00:00</lastmod>
+  <changefreq>daily</changefreq>
   <priority>0.80</priority>
 </url>
 <url>
   <loc>http://www.cs.colostate.edu/~chenwx/publication.html</loc>
-  <lastmod>2012-04-28T20:04:39+00:00</lastmod>
-  <changefreq>always</changefreq>
+  <lastmod>2012-07-14T05:05:25+00:00</lastmod>
+  <changefreq>daily</changefreq>
   <priority>0.80</priority>
 </url>
 <url>
   <loc>http://www.cs.colostate.edu/~chenwx/contact.html</loc>
-  <lastmod>2012-04-28T20:04:24+00:00</lastmod>
-  <changefreq>always</changefreq>
+  <lastmod>2012-07-14T05:05:36+00:00</lastmod>
+  <changefreq>daily</changefreq>
   <priority>0.80</priority>
 </url>
 <url>
   <loc>http://www.cs.colostate.edu/~chenwx/archive.html</loc>
-  <lastmod>2012-04-28T20:04:29+00:00</lastmod>
-  <changefreq>always</changefreq>
+  <lastmod>2012-07-14T05:05:51+00:00</lastmod>
+  <changefreq>daily</changefreq>
+  <priority>0.80</priority>
+</url>
+<url>
+  <loc>http://www.cs.colostate.edu/~chenwx/ppsn2012.pdf</loc>
+  <lastmod>2012-07-14T04:37:08+00:00</lastmod>
+  <changefreq>daily</changefreq>
   <priority>0.80</priority>
 </url>
 <url>
   <loc>http://www.cs.colostate.edu/~chenwx/gecco12.pdf</loc>
-  <lastmod>2012-01-26T06:37:00+00:00</lastmod>
-  <changefreq>always</changefreq>
-  <priority>0.80</priority>
-</url>
-<url>
-  <loc>http://www.cs.colostate.edu/~chenwx/bachelor-thesis-final.pdf</loc>
-  <lastmod>2011-06-12T01:05:24+00:00</lastmod>
-  <changefreq>always</changefreq>
+  <lastmod>2012-07-14T04:33:58+00:00</lastmod>
+  <changefreq>daily</changefreq>
   <priority>0.80</priority>
 </url>
 <url>
   <loc>http://www.cs.colostate.edu/~chenwx/sitemap.html</loc>
-  <lastmod>2012-04-28T20:04:35+00:00</lastmod>
-  <changefreq>always</changefreq>
+  <lastmod>2012-07-14T05:06:06+00:00</lastmod>
+  <changefreq>daily</changefreq>
   <priority>0.80</priority>
 </url>
 <url>
   <loc>http://www.cs.colostate.edu/~chenwx/PhdSurvivalGuide.pdf</loc>
   <lastmod>2011-02-22T13:52:10+00:00</lastmod>
-  <changefreq>always</changefreq>
+  <changefreq>daily</changefreq>
   <priority>0.64</priority>
 </url>
 <url>
   <loc>http://www.cs.colostate.edu/~chenwx/YouAndYourResearch.pdf</loc>
   <lastmod>2011-02-22T13:53:27+00:00</lastmod>
-  <changefreq>always</changefreq>
-  <priority>0.64</priority>
-</url>
-<url>
-  <loc>http://www.cs.colostate.edu/~chenwx/bib.html</loc>
-  <lastmod>2012-04-28T20:04:04+00:00</lastmod>
-  <changefreq>always</changefreq>
+  <changefreq>daily</changefreq>
   <priority>0.64</priority>
 </url>
 <url>
   <loc>http://www.cs.colostate.edu/~chenwx/ppsn2010Chen.pdf</loc>
   <lastmod>2011-02-22T13:54:02+00:00</lastmod>
-  <changefreq>always</changefreq>
+  <changefreq>daily</changefreq>
   <priority>0.64</priority>
 </url>
 <url>
   <loc>http://www.cs.colostate.edu/~chenwx/ppsn2010Poster.pdf</loc>
   <lastmod>2011-02-22T13:54:36+00:00</lastmod>
-  <changefreq>always</changefreq>
+  <changefreq>daily</changefreq>
   <priority>0.64</priority>
 </url>
 <url>
   <loc>http://www.cs.colostate.edu/~chenwx/slides2010PPSN.pdf</loc>
-  <lastmod>2012-04-15T19:10:35+00:00</lastmod>
-  <changefreq>always</changefreq>
+  <lastmod>2012-04-15T20:10:35+00:00</lastmod>
+  <changefreq>daily</changefreq>
+  <priority>0.64</priority>
+</url>
+<url>
+  <loc>http://www.cs.colostate.edu/~chenwx/bachelor-thesis-final.pdf</loc>
+  <lastmod>2011-06-12T02:05:24+00:00</lastmod>
+  <changefreq>daily</changefreq>
   <priority>0.64</priority>
 </url>
 <url>
   <loc>http://www.cs.colostate.edu/~chenwx/bachelor-slide.pdf</loc>
-  <lastmod>2011-06-13T05:19:29+00:00</lastmod>
-  <changefreq>always</changefreq>
+  <lastmod>2011-06-13T06:19:29+00:00</lastmod>
+  <changefreq>daily</changefreq>
   <priority>0.64</priority>
 </url>
 <url>
   <loc>http://www.cs.colostate.edu/~chenwx/Answer%20Sheet%20For%20EC%20course(Wenxiang%20Chen).pdf</loc>
   <lastmod>2011-02-22T13:51:57+00:00</lastmod>
-  <changefreq>always</changefreq>
+  <changefreq>daily</changefreq>
+  <priority>0.64</priority>
+</url>
+<url>
+  <loc>http://www.cs.colostate.edu/~chenwx/bib.html</loc>
+  <lastmod>2012-04-28T21:04:04+00:00</lastmod>
+  <changefreq>daily</changefreq>
   <priority>0.64</priority>
 </url>
 <url>
   <loc>http://www.cs.colostate.edu/~chenwx/project.html</loc>
-  <lastmod>2012-04-28T20:03:13+00:00</lastmod>
-  <changefreq>always</changefreq>
+  <lastmod>2012-05-09T02:21:28+00:00</lastmod>
+  <changefreq>daily</changefreq>
   <priority>0.64</priority>
 </url>
 </urlset>

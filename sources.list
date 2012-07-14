@@ -1,0 +1,31 @@
+## /etc/apt/sources.list for debian unstable
+## see sources.list(5) for more information.
+## you can replace http with ftp.
+## this file should be used in unstable only.
+
+### official debian main
+deb http://ftp.us.debian.org/debian/ sid main non-free contrib
+
+## official debian-multimedia
+deb http://www.deb-multimedia.org sid main non-free
+
+### official debian-security
+deb http://security.debian.org/ testing/updates main contrib non-free
+# deb-src http://security.debian.org/ testing/updates main
+
+### official volatile
+deb http://ftp.debian.org/debian squeeze-updates main
+# deb-src http://volatile.debian.org/debian-volatile unstable/volatile main
+
+# MONO platform
+# deb http://debian.meebey.net/pkg-mono /
+
+# Swiftfox: Superfast Firefox particularly optimized for Linux
+# deb http://getswiftfox.com/builds/debian unstable non-free
+
+# lastest wine
+# deb http://www.lamaresh.net/apt sid main
+
+# for virtual box
+deb http://download.virtualbox.org/virtualbox/debian wheezy contrib non-free
+		             
